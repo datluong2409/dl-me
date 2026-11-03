@@ -1,0 +1,29 @@
+import { MOTION } from './motion-tokens'
+
+describe('MOTION tokens', () => {
+  it('match the spec table (section 6.8) and the plan additions', () => {
+    expect(MOTION).toEqual({
+      triggerThreshold: 0.35,
+      travel: { base: 350, perPx: 0.45, min: 350, max: 900, ease: [0.22, 1, 0.36, 1] },
+      bend: { min: 0.08, max: 0.18 },
+      draw: { min: 500, max: 700, ease: [0.16, 1, 0.3, 1] },
+      drop: {
+        min: 550,
+        max: 800,
+        ease: [0.22, 1, 0.36, 1],
+        offsetMin: 60,
+        offsetMax: 140,
+        startScale: 0.96,
+      },
+      fadeIn: 180,
+      ghostOut: 120,
+      itemGap: 120,
+      agentStagger: 140,
+      idleFadeDelay: 5000,
+      idleFadeDuration: 400,
+      idleAmplitude: { min: 40, max: 90 },
+      eligibleMargin: 100,
+      gestureTimeout: 4000,
+    })
+  })
+})
