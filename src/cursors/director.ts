@@ -49,6 +49,9 @@ interface AgentState {
   waitTimer?: Timer
   visible: boolean
   position?: Point
+  stopIdle?: () => void
+  /** Last section reported to subscribers; null while idle. */
+  reported: string | null
 }
 
 const CLEARED_ON_DONE = ['opacity', 'transform', 'outline', 'outline-offset', '--ax', '--ay']
@@ -59,9 +62,55 @@ export class Director {
   private eligible = new Set<string>()
   private agents: AgentState[]
   private runningId: string | null = null
+  private reduced = false
+  private disposed = false
+  private fadeTimer?: Timer
+  private listeners = new Set<(event: StatusEvent) => void>()
 
   constructor(private deps: DirectorDeps) {
-    this.agents = deps.agents.map((agent, index) => ({ agent, index, visible: false }))
+    this.agents = deps.agents.map((agent, index) => ({ agent, index, visible: false, reported: null }))
+  }
+
+  /** Reduced motion: finish everything now, hide the agents, and never animate again until turned off. */
+  setReducedMotion(on: boolean): void {
+    this.reduced = on
+    if (!on) return
+    this.cancelIdle()
+    for (const id of [...this.sections.keys()]) this.completeSectionInstantly(id)
+    for (const agent of this.agents) {
+      this.releaseAgent(agent)
+      this.deps.view.setVisible(agent.agent.id, false)
+      agent.visible = false
+    }
+    this.settleAgents()
+  }
+
+  /** Finishes the section that is currently running, if any (used when the tab becomes visible again). */
+  snapRunning(): void {
+    if (!this.runningId) return
+    this.completeSectionInstantly(this.runningId)
+    this.settleAgents()
+  }
+
+  subscribe(listener: (event: StatusEvent) => void): () => void {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+
+  /** Stops all activity and timers but keeps registrations, so start() can resume (React StrictMode). */
+  dispose(): void {
+    this.snapRunning()
+    this.cancelIdle()
+    for (const agent of this.agents) {
+      this.releaseAgent(agent)
+      this.deps.view.setVisible(agent.agent.id, false)
+      agent.visible = false
+    }
+    this.disposed = true
+  }
+
+  start(): void {
+    this.disposed = false
   }
 
   registerSection(id: string, el: HTMLElement): () => void {
@@ -99,10 +148,11 @@ export class Director {
 
   triggerSection(sectionId: string): void {
     const section = this.sections.get(sectionId)
-    if (!section || section.status !== 'pending') return
+    if (this.disposed || !section || section.status !== 'pending') return
     if (this.runningId && this.runningId !== sectionId) this.completeSectionInstantly(this.runningId)
     section.status = 'running'
     this.runningId = sectionId
+    this.cancelIdle()
     for (const agent of this.agents) {
       this.releaseAgent(agent)
       if (agent.index > 0) this.holdAgent(agent, agent.index * MOTION.agentStagger)
@@ -135,7 +185,7 @@ export class Director {
   private section(id: string): SectionState {
     let section = this.sections.get(id)
     if (!section) {
-      section = { id, status: 'pending' }
+      section = { id, status: this.reduced ? 'done' : 'pending' }
       this.sections.set(id, section)
     }
     return section
@@ -173,17 +223,77 @@ export class Director {
 
   /** Gives every free agent the next eligible pending item of the running section. */
   private pump(): void {
+    if (this.disposed) return
     const section = this.runningId ? this.sections.get(this.runningId) : undefined
-    if (!section || section.status !== 'running') return
-    const items = this.itemsOf(section.id)
-    for (const agent of this.agents) {
-      while (this.isFree(agent)) {
-        const item = nextItem(items, (i) => this.eligible.has(i.id))
-        if (!item) break
-        this.claim(agent, item)
+    if (section && section.status === 'running') {
+      const items = this.itemsOf(section.id)
+      for (const agent of this.agents) {
+        while (this.isFree(agent)) {
+          const item = nextItem(items, (i) => this.eligible.has(i.id))
+          if (!item) break
+          this.claim(agent, item)
+        }
       }
+      this.finishIfDone(section)
     }
-    this.finishIfDone(section)
+    this.settleAgents()
+  }
+
+  private report(agent: AgentState, sectionId: string | null): void {
+    if (agent.reported === sectionId) return
+    agent.reported = sectionId
+    for (const listener of [...this.listeners]) listener({ agentId: agent.agent.id, sectionId })
+  }
+
+  /** Reports every agent that has nothing to do as idle. */
+  private settleAgents(): void {
+    for (const agent of this.agents) if (this.isFree(agent)) this.report(agent, null)
+  }
+
+  private onSectionDone(section: SectionState): void {
+    if (this.reduced || this.disposed || !section.el) return
+    const bounds = this.deps.measure(section.el)
+    const { view } = this.deps
+    for (const agent of this.agents) {
+      if (!agent.visible) {
+        agent.position = this.deps.spawn()
+        view.setPosition(agent.agent.id, agent.position.x, agent.position.y)
+        view.setVisible(agent.agent.id, true)
+        agent.visible = true
+      }
+      agent.stopIdle?.()
+      agent.stopIdle = this.deps.startIdle({
+        agent: agent.agent,
+        view,
+        from: agent.position as Point,
+        bounds,
+        rng: this.deps.rng,
+        setPosition: (p) => {
+          agent.position = p
+          view.setPosition(agent.agent.id, p.x, p.y)
+        },
+      })
+    }
+    this.fadeTimer = setTimeout(() => this.fadeOutAll(), MOTION.idleFadeDelay)
+  }
+
+  private cancelIdle(): void {
+    if (this.fadeTimer) clearTimeout(this.fadeTimer)
+    this.fadeTimer = undefined
+    for (const agent of this.agents) {
+      agent.stopIdle?.()
+      agent.stopIdle = undefined
+    }
+  }
+
+  private fadeOutAll(): void {
+    this.fadeTimer = undefined
+    for (const agent of this.agents) {
+      agent.stopIdle?.()
+      agent.stopIdle = undefined
+      if (agent.visible) this.deps.view.setVisible(agent.agent.id, false)
+      agent.visible = false
+    }
   }
 
   private claim(agent: AgentState, item: Item): void {
@@ -215,6 +325,7 @@ export class Director {
       watchdog: setTimeout(() => this.snapItem(item), MOTION.gestureTimeout),
     }
     agent.run = run
+    this.report(agent, item.sectionId)
 
     const ctx = {
       item,
@@ -292,5 +403,6 @@ export class Director {
     if (!this.itemsOf(section.id).every((i) => i.status === 'done')) return
     section.status = 'done'
     if (this.runningId === section.id) this.runningId = null
+    this.onSectionDone(section)
   }
 }

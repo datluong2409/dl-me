@@ -22,10 +22,15 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
     })
   }
   const view = { setPosition: vi.fn(), setVisible: vi.fn(), showGhost: vi.fn(), setSelection: vi.fn() }
+  const stops: ReturnType<typeof vi.fn>[] = []
   const deps: DirectorDeps = {
     view,
     gestures: { draw: gesture, drop: gesture },
-    startIdle: vi.fn(() => vi.fn()),
+    startIdle: vi.fn(() => {
+      const stop = vi.fn()
+      stops.push(stop)
+      return stop
+    }),
     agents: AGENTS.slice(0, 2),
     rng: () => 0.5,
     measure,
@@ -50,7 +55,7 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
   const ids = () => calls.map((c) => c.ctx.item.id)
   const tick = (ms = 0) => vi.advanceTimersByTimeAsync(ms)
 
-  return { director, view, deps, calls, seen, section, item, ids, tick }
+  return { director, view, deps, calls, seen, stops, section, item, ids, tick }
 }
 
 describe('Director: registration', () => {
@@ -298,5 +303,181 @@ describe('Director: interruptions and failures', () => {
     expect(t.calls[0].ctx.signal.aborted).toBe(true)
     expect(a.el.dataset.assemble).toBe('done')
     expect(t.director.getStatus('s')).toBe('done')
+  })
+})
+
+describe('Director: reduced motion', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('snaps a running section, finishes every section and hides every agent', async () => {
+    const t = setup()
+    t.section('s')
+    t.section('later')
+    const a = t.item('s', 'a', 1)
+    const b = t.item('s', 'b', 2)
+    const c = t.item('later', 'c', 1)
+    t.director.triggerSection('s')
+    await t.tick(140)
+    t.director.setReducedMotion(true)
+    expect(t.calls[0].ctx.signal.aborted).toBe(true)
+    expect(t.calls[1].ctx.signal.aborted).toBe(true)
+    expect([a, b, c].map((i) => i.el.dataset.assemble)).toEqual(['done', 'done', 'done'])
+    expect(t.director.getStatus('later')).toBe('done')
+    expect(t.view.setVisible).toHaveBeenCalledWith('mai', false)
+    expect(t.view.setVisible).toHaveBeenCalledWith('kai', false)
+  })
+
+  it('never animates afterwards: new items are done and no idle drift starts', async () => {
+    const t = setup()
+    t.director.setReducedMotion(true)
+    t.section('s')
+    const a = t.item('s', 'a', 1)
+    expect(a.el.dataset.assemble).toBe('done')
+    t.director.triggerSection('s')
+    await t.tick(500)
+    expect(t.calls).toHaveLength(0)
+    expect(t.deps.startIdle).not.toHaveBeenCalled()
+  })
+})
+
+describe('Director: idle drift and fade-out', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  async function finishSection(t: ReturnType<typeof setup>, id: string) {
+    t.director.triggerSection(id)
+    await t.tick()
+    t.calls[t.calls.length - 1].resolve()
+    await t.tick(120)
+  }
+
+  it('starts an idle drift for every agent around the finished section', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'a', 1)
+    await finishSection(t, 's')
+    expect(t.deps.startIdle).toHaveBeenCalledTimes(2)
+    const firstCall = (t.deps.startIdle as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(firstCall.bounds).toEqual(FULL)
+    expect(firstCall.agent.id).toBe('mai')
+  })
+
+  it('fades every agent out after 5000ms without a new trigger and stops their drift', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'a', 1)
+    await finishSection(t, 's') // the 5000ms countdown started when the last item finished, 120ms ago
+    await t.tick(4879)
+    expect(t.view.setVisible).not.toHaveBeenCalledWith('mai', false)
+    await t.tick(1)
+    expect(t.view.setVisible).toHaveBeenCalledWith('mai', false)
+    expect(t.view.setVisible).toHaveBeenCalledWith('kai', false)
+    expect(t.stops).toHaveLength(2)
+    expect(t.stops.every((stop) => stop.mock.calls.length > 0)).toBe(true)
+  })
+
+  it('cancels the fade-out and stops the drift when a new section triggers', async () => {
+    const t = setup()
+    t.section('s')
+    t.section('s2')
+    t.item('s', 'a', 1)
+    t.item('s2', 'b', 1)
+    await finishSection(t, 's')
+    await t.tick(4000)
+    expect(t.stops).toHaveLength(2)
+    t.director.triggerSection('s2')
+    expect(t.stops.every((stop) => stop.mock.calls.length > 0)).toBe(true)
+    await t.tick(6000)
+    expect(t.view.setVisible).not.toHaveBeenCalledWith('mai', false)
+  })
+
+  it('brings an agent back in from the spawn point after it faded out', async () => {
+    const t = setup()
+    t.section('s')
+    t.section('s2')
+    t.item('s', 'a', 1)
+    t.item('s2', 'b', 1)
+    await finishSection(t, 's')
+    await t.tick(5000)
+    t.view.setPosition.mockClear()
+    t.view.setVisible.mockClear()
+    t.director.triggerSection('s2')
+    await t.tick()
+    expect(t.view.setPosition).toHaveBeenCalledWith('mai', 5, 5)
+    expect(t.view.setVisible).toHaveBeenCalledWith('mai', true)
+    expect(t.view.setPosition.mock.invocationCallOrder[0]).toBeLessThan(t.view.setVisible.mock.invocationCallOrder[0])
+  })
+})
+
+describe('Director: status events and lifecycle', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('reports when an agent takes an item and when it goes idle, until unsubscribed', async () => {
+    const t = setup()
+    t.section('s')
+    t.section('s2')
+    t.item('s', 'a', 1)
+    t.item('s2', 'b', 1)
+    const events: unknown[] = []
+    const off = t.director.subscribe((e) => events.push(e))
+    t.director.triggerSection('s')
+    await t.tick()
+    expect(events).toEqual([{ agentId: 'mai', sectionId: 's' }])
+    t.calls[0].resolve()
+    await t.tick(120)
+    expect(events).toEqual([
+      { agentId: 'mai', sectionId: 's' },
+      { agentId: 'mai', sectionId: null },
+    ])
+    off()
+    t.director.triggerSection('s2')
+    await t.tick()
+    expect(events).toHaveLength(2)
+  })
+
+  it('snapRunning() finishes only the running section', async () => {
+    const t = setup()
+    t.section('s1')
+    t.section('s2')
+    const a = t.item('s1', 'a', 1)
+    const b = t.item('s2', 'b', 1)
+    t.director.triggerSection('s1')
+    await t.tick()
+    t.director.snapRunning()
+    expect(a.el.dataset.assemble).toBe('done')
+    expect(b.el.dataset.assemble).toBe('pending')
+    expect(t.director.getStatus('s2')).toBe('pending')
+  })
+
+  it('dispose() aborts running gestures and clears every timer; start() makes it usable again', async () => {
+    const t = setup()
+    t.section('s')
+    t.section('s2')
+    t.item('s', 'a', 1)
+    t.item('s', 'b', 2)
+    t.item('s2', 'c', 1)
+    t.director.triggerSection('s')
+    await t.tick(140)
+    t.director.dispose()
+    expect(t.calls[0].ctx.signal.aborted).toBe(true)
+    expect(vi.getTimerCount()).toBe(0)
+    t.director.triggerSection('s2')
+    await t.tick(500)
+    expect(t.ids()).toEqual(['a', 'b'])
+    t.director.start()
+    t.director.triggerSection('s2')
+    await t.tick()
+    expect(t.ids()).toEqual(['a', 'b', 'c'])
   })
 })
