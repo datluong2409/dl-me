@@ -28,11 +28,12 @@ export function isEligible(box: Box, viewportHeight: number): boolean {
 export function nextItem<T extends { order: number; status: ItemStatus }>(
   items: readonly T[],
   eligible: (item: T) => boolean,
+  orderOf: (item: T) => number = (item) => item.order,
 ): T | undefined {
   let best: T | undefined
   for (const item of items) {
     if (item.status !== 'pending' || !eligible(item)) continue
-    if (!best || item.order < best.order) best = item
+    if (!best || orderOf(item) < orderOf(best)) best = item
   }
   return best
 }

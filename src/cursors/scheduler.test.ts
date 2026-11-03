@@ -59,6 +59,11 @@ describe('nextItem', () => {
     expect(nextItem(items, (i) => i.id === 'b')?.id).toBe('b')
   })
 
+  it('uses a custom order when one is given', () => {
+    const items = [item('a', 1, 'pending'), item('b', 2, 'pending')]
+    expect(nextItem(items, () => true, (i) => -i.order)?.id).toBe('b')
+  })
+
   it('returns undefined when nothing can start', () => {
     expect(nextItem([item('a', 1, 'done')], () => true)).toBeUndefined()
     expect(nextItem([item('a', 1, 'pending')], () => false)).toBeUndefined()

@@ -3,13 +3,16 @@ import type { Tween } from '../cursors/animate'
 import type { GestureContext, Point, Rect } from '../cursors/types'
 
 /** A synchronous tween: reports progress 0, 0.5 and 1 immediately, and records every duration it was asked for. */
-export function fakeTween(onCall?: () => void) {
+export function fakeTween(onCall?: () => void, afterUpdate?: (progress: number) => void) {
   const durations: number[] = []
   const tween: Tween = async ({ duration, onUpdate, signal }) => {
     onCall?.()
     durations.push(duration)
     if (signal.aborted) return
-    for (const progress of [0, 0.5, 1]) onUpdate(progress)
+    for (const progress of [0, 0.5, 1]) {
+      onUpdate(progress)
+      afterUpdate?.(progress)
+    }
   }
   return { tween, durations }
 }
@@ -33,6 +36,8 @@ export function makeCtx(overrides: Partial<GestureContext> = {}) {
     setPosition: (p) => {
       positions.push(p)
     },
+    measure: () => rect,
+    pace: 1,
     ...overrides,
   }
   return { ctx, el, view, positions, controller, rect }

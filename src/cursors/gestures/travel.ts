@@ -1,14 +1,17 @@
 import type { Tween } from '../animate'
 import { MOTION } from '../motion-tokens'
-import { curvePoint, distance, lerp, makeBend, travelDuration } from '../path'
+import { curvePoint, distance, hopDuration, lerp, makeBend, paced, travelDuration } from '../path'
 import type { GestureContext, Point, Rect } from '../types'
 
-/** Flies the agent's cursor along a gentle curve from where it is to `to`. */
+/** Flies the agent's cursor along a gentle curve from where it is to `to` (children hop, and everything follows the pace). */
 export async function travel(ctx: GestureContext, tween: Tween, to: Point): Promise<void> {
   const from = ctx.from
   const bend = makeBend(ctx.rng)
   await tween({
-    duration: travelDuration(distance(from, to)),
+    duration: paced(
+      ctx.item.parentId ? hopDuration(distance(from, to)) : travelDuration(distance(from, to)),
+      ctx.pace,
+    ),
     ease: MOTION.travel.ease,
     signal: ctx.signal,
     onUpdate: (progress) => ctx.setPosition(curvePoint(from, to, progress, bend)),

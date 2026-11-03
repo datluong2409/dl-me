@@ -21,6 +21,14 @@ export const MOTION = {
   roam: { margin: 100, settleAfter: 250, glide: 600 },
   /** An idle cursor with the pointer within `radius` px glides to a spot at least `distance` px away. */
   flee: { radius: 120, distance: 280, duration: 600, cooldown: 400, ease: [0.22, 1, 0.36, 1] },
+  /** Short flights between nearby children (words of a paragraph, chips of a card). */
+  hop: { base: 140, perPx: 0.4, min: 140, max: 520 },
+  /** Typing: words fade in one after another; the cursor rides the newest word. */
+  type: { perWord: 70, min: 250, max: 1100, lift: 3, ease: [0, 0, 1, 1] },
+  /** Stamping a chip, badge or button into place. */
+  stamp: { duration: 220, startScale: 0.85, ease: [0.22, 1, 0.36, 1] },
+  /** With more than `full` items left, children speed up (down to 1/`max` of their time, never under `floor` ms per step). */
+  pace: { full: 24, max: 2.5, floor: 60 },
   eligibleMargin: 100,
   /** Safety net (plan addition): a gesture that never finishes is snapped after this long. */
   gestureTimeout: 4000,

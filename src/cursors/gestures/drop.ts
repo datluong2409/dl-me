@@ -1,6 +1,6 @@
 import type { Tween } from '../animate'
 import { MOTION } from '../motion-tokens'
-import { lerp } from '../path'
+import { lerp, paced } from '../path'
 import type { GestureFn } from '../types'
 import { durationForRect, travel } from './travel'
 
@@ -28,7 +28,7 @@ export function createDropGesture(tween: Tween): GestureFn {
       el.style.opacity = '1'
       view.setSelection(el, agent)
       await tween({
-        duration: durationForRect(rect, MOTION.drop),
+        duration: paced(durationForRect(rect, MOTION.drop), ctx.pace),
         ease: MOTION.drop.ease,
         signal,
         onUpdate: place,

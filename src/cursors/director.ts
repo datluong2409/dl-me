@@ -1,11 +1,21 @@
 import type { Agent, AgentId } from './agents'
 import { MOTION } from './motion-tokens'
 import { dropOffset, nextItem } from './scheduler'
-import type { CursorView, Gesture, GestureFn, IdleContext, Item, ItemStatus, Point, Rect } from './types'
+import type {
+  AnimatedGesture,
+  CursorView,
+  Gesture,
+  GestureFn,
+  IdleContext,
+  Item,
+  ItemStatus,
+  Point,
+  Rect,
+} from './types'
 
 export interface DirectorDeps {
   view: CursorView
-  gestures: Record<Gesture, GestureFn>
+  gestures: Record<AnimatedGesture, GestureFn>
   /** Starts an idle drift for an agent; returns the function that stops it. */
   startIdle: (ctx: IdleContext) => () => void
   agents: readonly Agent[]
@@ -127,7 +137,14 @@ export class Director {
     }
   }
 
-  registerItem(spec: { id: string; sectionId: string; el: HTMLElement; gesture: Gesture; order: number }): () => void {
+  registerItem(spec: {
+    id: string
+    sectionId: string
+    el: HTMLElement
+    gesture: Gesture
+    order: number
+    parentId?: string
+  }): () => void {
     const section = this.section(spec.sectionId)
     const item: Item = { ...spec, status: section.status === 'done' ? 'done' : 'pending' }
     this.items.set(item.id, item)
@@ -231,9 +248,14 @@ export class Director {
     const section = this.runningId ? this.sections.get(this.runningId) : undefined
     if (section && section.status === 'running') {
       const items = this.itemsOf(section.id)
+      this.completeGroups(items)
       for (const agent of this.agents) {
         while (this.isFree(agent)) {
-          const item = nextItem(items, (i) => this.eligible.has(i.id))
+          const item = nextItem(
+            items,
+            (i) => i.gesture !== 'group' && this.eligible.has(i.id) && this.parentDone(i),
+            (i) => this.orderOf(i),
+          )
           if (!item) break
           this.claim(agent, item)
         }
@@ -331,11 +353,13 @@ export class Director {
         agent.position = p
         view.setPosition(agent.agent.id, p.x, p.y)
       },
+      measure: this.deps.measure,
+      pace: this.paceFor(item),
     }
 
     let promise: Promise<void>
     try {
-      promise = this.deps.gestures[item.gesture](ctx)
+      promise = this.deps.gestures[item.gesture as AnimatedGesture](ctx)
     } catch (error) {
       promise = Promise.reject(error)
     }
@@ -355,8 +379,7 @@ export class Director {
     this.clearOverlay(run)
     this.completeItem(run.item)
     this.holdAgent(run.agent, MOTION.itemGap)
-    const section = this.sections.get(run.item.sectionId)
-    if (section) this.finishIfDone(section)
+    this.pump() // the item may have unlocked children for other idle agents
   }
 
   /** Aborts the gesture running for an item, if any, and frees its agent immediately. */
@@ -387,7 +410,55 @@ export class Director {
   private completeItem(item: Item): void {
     item.status = 'done'
     for (const property of CLEARED_ON_DONE) item.el.style.removeProperty(property)
+    // Typing hides words one by one; whatever stops it (a snap, a scroll away) must leave them all visible.
+    for (const word of item.el.querySelectorAll<HTMLElement>('[data-word]')) {
+      word.style.removeProperty('opacity')
+      word.style.removeProperty('transform')
+    }
     item.el.dataset.assemble = 'done'
+  }
+
+  /** A child may start once its parent's frame is done (a parent that no longer exists does not hold it back). */
+  private parentDone(item: Item): boolean {
+    const parent = item.parentId ? this.items.get(item.parentId) : undefined
+    return !parent || parent.status === 'done'
+  }
+
+  private depthOf(item: Item): number {
+    let depth = 0
+    let parent = item.parentId ? this.items.get(item.parentId) : undefined
+    while (parent && depth < 16) {
+      depth++
+      parent = parent.parentId ? this.items.get(parent.parentId) : undefined
+    }
+    return depth
+  }
+
+  /** Children sort right after their parent: parent order + child order / 1000^depth. */
+  private orderOf(item: Item): number {
+    const parent = item.parentId ? this.items.get(item.parentId) : undefined
+    return parent ? this.orderOf(parent) + item.order / 1000 ** this.depthOf(item) : item.order
+  }
+
+  /** Invisible containers finish the moment their parent does, which can unlock more groups in turn. */
+  private completeGroups(items: Item[]): void {
+    for (let changed = true; changed; ) {
+      changed = false
+      for (const item of items) {
+        if (item.status === 'pending' && item.gesture === 'group' && this.parentDone(item)) {
+          this.completeItem(item)
+          changed = true
+        }
+      }
+    }
+  }
+
+  /** 1 for frames and for a few children; shrinks toward 1/pace.max as more children wait. */
+  private paceFor(item: Item): number {
+    if (!item.parentId) return 1
+    const remaining = this.itemsOf(item.sectionId).filter((i) => i.status !== 'done').length
+    const crowd = Math.min(MOTION.pace.max, Math.max(1, remaining / MOTION.pace.full))
+    return 1 / crowd
   }
 
   private finishIfDone(section: SectionState): void {

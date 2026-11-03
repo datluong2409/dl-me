@@ -1,6 +1,9 @@
 import type { Agent, AgentId } from './agents'
 
-export type Gesture = 'draw' | 'drop'
+/** Gestures a cursor performs. */
+export type AnimatedGesture = 'draw' | 'drop' | 'type' | 'stamp'
+/** `group` is an invisible container: it completes instantly, with no cursor, and unlocks its children. */
+export type Gesture = AnimatedGesture | 'group'
 export type ItemStatus = 'pending' | 'running' | 'done'
 
 export interface Point {
@@ -21,7 +24,10 @@ export interface Item {
   sectionId: string
   el: HTMLElement
   gesture: Gesture
+  /** Position among its siblings; children are ordered right after their parent. */
   order: number
+  /** The item whose frame must be done before this one can start. */
+  parentId?: string
   status: ItemStatus
 }
 
@@ -46,6 +52,10 @@ export interface GestureContext {
   rng: () => number
   /** Moves the agent's cursor and remembers where it is. */
   setPosition(p: Point): void
+  /** A box in overlay coordinates, for gestures that follow parts of an item (the words being typed). */
+  measure(el: HTMLElement): Rect
+  /** Time scale, 1 normally; below 1 when many children are waiting so the section still finishes in a few seconds. */
+  pace: number
 }
 
 /** Resolves (never rejects) when aborted, so callers check `signal.aborted` afterwards. */

@@ -15,6 +15,18 @@ export function travelDuration(distanceInPx: number): number {
   return Math.min(max, Math.max(min, base + perPx * distanceInPx))
 }
 
+/** Short flights between nearby children: quicker than a full travel, 140..520ms. */
+export function hopDuration(distanceInPx: number): number {
+  const { base, perPx, min, max } = MOTION.hop
+  return Math.min(max, Math.max(min, base + perPx * distanceInPx))
+}
+
+/** Scales a duration by the pace (below 1 when many children wait), but never below the floor or above the original. */
+export function paced(ms: number, pace: number): number {
+  if (pace >= 1) return ms
+  return Math.min(ms, Math.max(MOTION.pace.floor, ms * pace))
+}
+
 /** Signed bend as a fraction of the travel distance: magnitude first, then sign (negative when rng < 0.5). */
 export function makeBend(rng: () => number): number {
   const { min, max } = MOTION.bend

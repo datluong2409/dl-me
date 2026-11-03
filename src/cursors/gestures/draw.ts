@@ -1,5 +1,6 @@
 import type { Tween } from '../animate'
 import { MOTION } from '../motion-tokens'
+import { paced } from '../path'
 import type { GestureFn } from '../types'
 import { durationForRect, travel } from './travel'
 
@@ -12,7 +13,7 @@ export function createDrawGesture(tween: Tween): GestureFn {
       if (signal.aborted) return
 
       await tween({
-        duration: durationForRect(rect, MOTION.draw),
+        duration: paced(durationForRect(rect, MOTION.draw), ctx.pace),
         ease: MOTION.draw.ease,
         signal,
         onUpdate: (progress) => {
@@ -25,7 +26,7 @@ export function createDrawGesture(tween: Tween): GestureFn {
       // The ghost fades out (CSS transition) while the real item fades in underneath.
       view.showGhost(agent.id, null)
       await tween({
-        duration: MOTION.fadeIn,
+        duration: paced(MOTION.fadeIn, ctx.pace),
         ease: MOTION.draw.ease,
         signal,
         onUpdate: (progress) => {

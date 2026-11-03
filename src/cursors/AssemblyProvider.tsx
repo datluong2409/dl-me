@@ -8,6 +8,8 @@ import { createCursorView } from './cursor-view'
 import { Director } from './director'
 import { createDrawGesture } from './gestures/draw'
 import { createDropGesture } from './gestures/drop'
+import { createStampGesture } from './gestures/stamp'
+import { createTypeGesture } from './gestures/type'
 import { startIdle } from './idle'
 import { attachViewportObservers, evaluateViewport } from './observers'
 import { trackPointer } from './pointer'
@@ -43,7 +45,12 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
 
     const director = new Director({
       view,
-      gestures: { draw: createDrawGesture(motionTween), drop: createDropGesture(motionTween) },
+      gestures: {
+        draw: createDrawGesture(motionTween),
+        drop: createDropGesture(motionTween),
+        type: createTypeGesture(motionTween),
+        stamp: createStampGesture(motionTween),
+      },
       startIdle,
       agents,
       rng: Math.random,

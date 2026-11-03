@@ -1,5 +1,5 @@
 import { fakeTween, makeCtx } from '../../test/gesture-helpers'
-import { distance, travelDuration } from '../path'
+import { distance, hopDuration, travelDuration } from '../path'
 import { createDrawGesture } from './draw'
 
 describe('draw gesture', () => {
@@ -40,5 +40,17 @@ describe('draw gesture', () => {
     await createDrawGesture(tween)(ctx)
     expect(view.showGhost.mock.calls.at(-1)).toEqual(['mai', null])
     expect(el.style.opacity).toBe('0')
+  })
+
+  it('as a child it hops instead of flying, and every step is scaled by the pace', async () => {
+    const { ctx } = makeCtx()
+    ctx.item.parentId = 'card'
+    ctx.pace = 0.5
+    const { tween, durations } = fakeTween()
+    await createDrawGesture(tween)(ctx)
+    expect(durations[0]).toBeCloseTo(hopDuration(distance({ x: 0, y: 0 }, { x: 200, y: 100 })) * 0.5)
+    expect(durations[1]).toBeGreaterThanOrEqual(250)
+    expect(durations[1]).toBeLessThanOrEqual(350)
+    expect(durations[2]).toBe(90)
   })
 })

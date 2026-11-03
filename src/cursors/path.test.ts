@@ -1,4 +1,4 @@
-import { curvePoint, distance, makeBend, travelDuration } from './path'
+import { curvePoint, distance, hopDuration, makeBend, paced, travelDuration } from './path'
 
 describe('distance', () => {
   it('is the euclidean distance', () => {
@@ -43,5 +43,26 @@ describe('curvePoint', () => {
     const mid = curvePoint(a, b, 0.5, 0.1)
     expect(mid.x).toBeCloseTo(50)
     expect(mid.y).toBeCloseTo(5)
+  })
+})
+
+describe('hopDuration', () => {
+  it('is 140ms plus 0.4ms per pixel, clamped to 140..520', () => {
+    expect(hopDuration(0)).toBe(140)
+    expect(hopDuration(100)).toBeCloseTo(180)
+    expect(hopDuration(5000)).toBe(520)
+  })
+})
+
+describe('paced', () => {
+  it('leaves a duration alone at pace 1', () => {
+    expect(paced(220, 1)).toBe(220)
+    expect(paced(30, 1)).toBe(30)
+  })
+
+  it('scales a duration by the pace but never below 60ms (or the duration itself, if shorter)', () => {
+    expect(paced(500, 0.4)).toBeCloseTo(200)
+    expect(paced(100, 0.4)).toBe(60)
+    expect(paced(40, 0.4)).toBe(40)
   })
 })

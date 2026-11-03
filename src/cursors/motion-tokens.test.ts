@@ -22,6 +22,10 @@ describe('MOTION tokens', () => {
       idleAmplitude: { min: 40, max: 90 },
       roam: { margin: 100, settleAfter: 250, glide: 600 },
       flee: { radius: 120, distance: 280, duration: 600, cooldown: 400, ease: [0.22, 1, 0.36, 1] },
+      hop: { base: 140, perPx: 0.4, min: 140, max: 520 },
+      type: { perWord: 70, min: 250, max: 1100, lift: 3, ease: [0, 0, 1, 1] },
+      stamp: { duration: 220, startScale: 0.85, ease: [0.22, 1, 0.36, 1] },
+      pace: { full: 24, max: 2.5, floor: 60 },
       eligibleMargin: 100,
       gestureTimeout: 4000,
     })

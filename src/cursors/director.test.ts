@@ -12,7 +12,7 @@ interface Call {
   reject(error: unknown): void
 }
 
-function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
+function setup(measure: (el: HTMLElement) => Rect = () => FULL, agentCount = 2) {
   const calls: Call[] = []
   const seen: { opacity: string; transform: string; assemble: string | undefined }[] = []
   const gesture = (ctx: GestureContext) => {
@@ -27,13 +27,13 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
   let pointerAt: Point | null = null
   const deps: DirectorDeps = {
     view,
-    gestures: { draw: gesture, drop: gesture },
+    gestures: { draw: gesture, drop: gesture, type: gesture, stamp: gesture },
     startIdle: vi.fn(() => {
       const stop = vi.fn()
       stops.push(stop)
       return stop
     }),
-    agents: AGENTS.slice(0, 2),
+    agents: AGENTS.slice(0, agentCount),
     rng: () => 0.5,
     measure,
     spawn: () => ({ x: 5, y: 5 }),
@@ -48,11 +48,18 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
     director.registerSection(id, el)
     return el
   }
-  const item = (sectionId: string, id: string, order: number, gesture: Gesture = 'drop', eligible = true) => {
+  const item = (
+    sectionId: string,
+    id: string,
+    order: number,
+    gesture: Gesture = 'drop',
+    eligible = true,
+    parentId?: string,
+  ) => {
     const el = document.createElement('div')
     el.id = id
     document.body.append(el)
-    const remove = director.registerItem({ id, sectionId, el, gesture, order })
+    const remove = director.registerItem({ id, sectionId, el, gesture, order, parentId })
     if (eligible) director.setItemEligible(id, true)
     return { el, remove }
   }
@@ -480,5 +487,140 @@ describe('Director: status events and lifecycle', () => {
     t.director.triggerSection('s2')
     await t.tick()
     expect(t.ids()).toEqual(['a', 'b', 'c'])
+  })
+})
+
+describe('Director: parents, children and groups', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => {
+    vi.useRealTimers()
+    document.body.innerHTML = ''
+  })
+
+  it('starts a child only after its parent is done, and hands it to an idle agent straight away', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'card', 1, 'draw')
+    t.item('s', 'title', 1, 'type', true, 'card')
+    t.director.triggerSection('s')
+    await t.tick(500)
+    expect(t.ids()).toEqual(['card'])
+    t.calls[0].resolve()
+    await t.tick()
+    expect(t.ids()).toEqual(['card', 'title'])
+    expect(t.calls[1].ctx.agent.id).toBe('kai')
+  })
+
+  it("finishes a parent's children before the next top-level item, in order", async () => {
+    const t = setup(undefined, 1)
+    t.section('s')
+    t.item('s', 'p1', 1, 'draw')
+    t.item('s', 'p2', 2, 'draw')
+    t.item('s', 'c1', 1, 'type', true, 'p1')
+    t.item('s', 'c2', 2, 'type', true, 'p1')
+    t.director.triggerSection('s')
+    // Finish every gesture as soon as it starts, so the start order shows the scheduling order.
+    for (let i = 0; i < 12; i++) {
+      await t.tick(200)
+      for (const call of t.calls) call.resolve()
+    }
+    const order = t.ids()
+    expect(order.indexOf('p1')).toBeLessThan(order.indexOf('c1'))
+    expect(order.indexOf('c1')).toBeLessThan(order.indexOf('c2'))
+    expect(order.indexOf('c2')).toBeLessThan(order.indexOf('p2'))
+  })
+
+  it('completes a group instantly, with no gesture and no agent, and unlocks its children', async () => {
+    const t = setup()
+    t.section('s')
+    const group = t.item('s', 'g', 1, 'group')
+    t.item('s', 'word', 1, 'type', true, 'g')
+    t.director.triggerSection('s')
+    await t.tick()
+    expect(group.el.dataset.assemble).toBe('done')
+    expect(t.ids()).toEqual(['word'])
+  })
+
+  it('completes nested groups in one go, and keeps a group waiting while its parent is not done', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'card', 1, 'draw')
+    const outer = t.item('s', 'g1', 1, 'group', true, 'card')
+    const inner = t.item('s', 'g2', 1, 'group', true, 'g1')
+    t.item('s', 'leaf', 1, 'stamp', true, 'g2')
+    t.director.triggerSection('s')
+    await t.tick()
+    expect([outer.el.dataset.assemble, inner.el.dataset.assemble]).toEqual(['pending', 'pending'])
+    t.calls[0].resolve()
+    await t.tick(200)
+    expect([outer.el.dataset.assemble, inner.el.dataset.assemble]).toEqual(['done', 'done'])
+    expect(t.ids()).toEqual(['card', 'leaf'])
+  })
+
+  it('does not finish the section until every child is done', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'card', 1, 'draw')
+    t.item('s', 'child', 1, 'type', true, 'card')
+    t.director.triggerSection('s')
+    await t.tick()
+    t.calls[0].resolve()
+    await t.tick(200)
+    expect(t.director.getStatus('s')).toBe('running')
+    t.calls[1].resolve()
+    await t.tick(200)
+    expect(t.director.getStatus('s')).toBe('done')
+  })
+
+  it('lets a child start when its parent has been unregistered', async () => {
+    const t = setup()
+    t.section('s')
+    const parent = t.item('s', 'card', 1, 'draw')
+    t.item('s', 'child', 1, 'type', true, 'card')
+    parent.remove()
+    t.director.triggerSection('s')
+    await t.tick()
+    expect(t.ids()).toEqual(['child'])
+  })
+
+  it('snaps children too, and clears the inline styles typing leaves on word spans', () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'card', 1, 'draw')
+    const text = t.item('s', 'text', 1, 'type', true, 'card')
+    const word = document.createElement('span')
+    word.dataset.word = ''
+    word.style.opacity = '0'
+    word.style.transform = 'translateY(3px)'
+    text.el.append(word)
+    t.director.completeSectionInstantly('s')
+    expect(text.el.dataset.assemble).toBe('done')
+    expect(word.style.getPropertyValue('opacity')).toBe('')
+    expect(word.style.getPropertyValue('transform')).toBe('')
+  })
+
+  it('gives gestures a measure function and a pace: normal for few children, faster when many wait', async () => {
+    const few = setup()
+    few.section('s')
+    few.item('s', 'card', 1, 'draw')
+    few.item('s', 'c', 1, 'type', true, 'card')
+    few.director.triggerSection('s')
+    await few.tick()
+    expect(few.calls[0].ctx.pace).toBe(1)
+    expect(typeof few.calls[0].ctx.measure).toBe('function')
+    few.calls[0].resolve()
+    await few.tick(200)
+    expect(few.calls[1].ctx.pace).toBe(1)
+
+    const many = setup()
+    many.section('s')
+    many.item('s', 'card', 1, 'draw')
+    for (let i = 1; i <= 60; i++) many.item('s', 'c' + i, i, 'stamp', true, 'card')
+    many.director.triggerSection('s')
+    await many.tick()
+    many.calls[0].resolve()
+    await many.tick(200)
+    expect(many.calls[0].ctx.pace).toBe(1)
+    expect(many.calls[1].ctx.pace).toBeCloseTo(0.4)
   })
 })
