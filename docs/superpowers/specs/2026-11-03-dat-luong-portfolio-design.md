@@ -132,7 +132,8 @@ Sáu avatar tròn (chữ cái đầu, nền màu của từng người) trong na
 | `scheduler.ts` | Hàm thuần: `isTriggered`, `nextItem`, `countAgents` | không |
 | `path.ts` | Hàm thuần: đường cong Bézier có độ lệch, thời lượng theo khoảng cách | RNG truyền vào |
 | `gestures/draw.ts`, `gestures/drop.ts` | Chạy một cử chỉ, trả `Promise<void>`, hủy được bằng `AbortSignal` | `motion` (`animate`), `CursorView` |
-| `idle.ts` | Chuyển động lơ lửng khi rảnh và fade-out | `CursorView` |
+| `idle.ts` | Cursor rảnh: trôi quanh một điểm "nhà", né con trỏ chuột, trở lại khung nhìn khi trang ngừng cuộn | `pointer.ts`, `viewport.ts` |
+| `pointer.ts`, `viewport.ts` | Vị trí chuột/ngón tay (toạ độ viewport); khung nhìn quy về toạ độ overlay | không |
 | `director.ts` | Lớp `Director`: đăng ký section/item, nhận trigger, giao việc, chốt dở dang | các đơn vị trên |
 | `CursorLayer.tsx` | Overlay; hiện thực `CursorView` bằng ghi DOM trực tiếp | `director.ts` |
 | `useAssemble.ts` | Hook đăng ký một element vào section gần nhất với `{ gesture, order }` | `director.ts` |
@@ -201,7 +202,10 @@ Quyền sở hữu thuộc tính: `data-assemble`, `data-gesture` và biến `--
 ### 6.6 Ngắt, chốt, rảnh
 
 - **Chốt (`snap`).** Khi section đang chạy bị thay thế: hủy mọi cử chỉ (`AbortController`), đặt các item chưa xong về `done` ngay, xóa ghost/viền chọn. Con trỏ giữ nguyên vị trí hiện tại và quay sang việc mới, không nhảy.
-- **Rảnh.** Agent không có việc lơ lửng chậm theo quỹ đạo nhỏ (biên độ 40–90px) quanh vùng thấy được của section, thỉnh thoảng lướt qua một item đã xong. Khi cả section `done`, sau 5s không có trigger mới, mọi con trỏ fade-out hẳn (không để mờ lửng) và vòng `requestAnimationFrame` dừng. Section kích hoạt tiếp theo cho chúng bay vào lại từ rìa viewport.
+- **Rảnh (cập nhật 2026-11-03).** Cursor rảnh **không bao giờ biến mất** và không còn fade-out: vòng `requestAnimationFrame` chạy liên tục khi có cursor rảnh (6 transform mỗi frame, trình duyệt tự dừng khi tab ẩn). Mỗi cursor trôi chậm (biên độ 40–90px) quanh một điểm "nhà" nằm trong khung nhìn, cách mép `roam.margin` = 100px (lớn hơn biên độ nên không bao giờ trôi ra ngoài).
+  - **Né chuột.** Khi chuột (hoặc ngón tay chạm/kéo) cách cursor dưới `flee.radius` = 120px, cursor lướt (`flee.duration` = 600ms, ease-out) tới một điểm cách chuột ít nhất `flee.distance` = 280px, ưu tiên phía cursor đang đứng so với chuột; gặp tường thì đổi hướng, viewport quá nhỏ thì chọn điểm xa nhất. Giữa hai lần né nghỉ `flee.cooldown` = 400ms. Chỉ cursor rảnh mới né; cursor đang cầm/kéo một item vẫn làm xong việc.
+  - **Ở lại trong khung nhìn.** Cursor sống trong toạ độ tài liệu nên khi cuộn nó cuộn theo trang (không giật). Khi khung nhìn đã đứng yên `roam.settleAfter` = 250ms mà cursor nằm ngoài khung nhìn, nó lướt (`roam.glide` = 600ms) tới một điểm nhà mới trong khung nhìn.
+  - Section kích hoạt tiếp theo vẫn kéo các cursor đi làm việc như cũ. Khi `prefers-reduced-motion` bật thì không có cursor (không đổi).
 - **Tab ẩn.** `visibilitychange` tạm dừng; khi quay lại, section đang chạy được chốt.
 - **Đổi ngôn ngữ.** Không chạy lại hiệu ứng. Item `pending` được đo vị trí **lúc bắt đầu cử chỉ** nên không bị số liệu cũ. `ResizeObserver` chỉ cập nhật ngưỡng trigger.
 - **Reduced motion.** `setReducedMotion(true)` chốt tất cả, tắt overlay và `scroll-behavior: smooth`. Theo dõi `matchMedia` nên bật/tắt khi đang xem cũng đúng.
@@ -222,7 +226,8 @@ Overlay là `position: absolute; inset: 0; overflow: clip; pointer-events: none`
 | Ghost / viền chọn tắt | 120ms (nhanh hơn lúc vào) |
 | Nghỉ giữa item | 120ms |
 | Lệch khởi động giữa agent | 140ms |
-| Rảnh tới fade-out | 5000ms, fade 400ms |
+| Cursor rảnh ở trong khung nhìn | cách mép 100px; về lại khung nhìn sau khi cuộn đứng yên 250ms, lướt 600ms |
+| Né chuột | bán kính 120px; tới điểm cách chuột ≥ 280px; 600ms, easing `[0.22, 1, 0.36, 1]`; nghỉ 400ms giữa hai lần |
 | Ngưỡng trigger | 0.35 |
 
 ## 7. Song ngữ
