@@ -26,8 +26,10 @@ export interface DirectorDeps {
   spawn: () => Point
   /** The visible window in overlay (document) coordinates; read fresh whenever it is needed. */
   viewport: () => Rect
-  /** Where the pointer is, in viewport coordinates, or null when it is not over the page. */
+  /** Where the pointer is, in overlay coordinates, or null when it is not over the page. */
   pointer: () => Point | null
+  /** Boxes of the page content in overlay coordinates, so resting cursors can keep off the text. */
+  obstacles: () => Rect[]
 }
 
 export interface StatusEvent {
@@ -273,34 +275,42 @@ export class Director {
 
   /** Reports every agent that has nothing to do as idle. */
   private settleAgents(): void {
-    for (const agent of this.agents) if (this.isFree(agent)) this.report(agent, null)
+    for (const agent of this.agents) {
+      if (!this.isFree(agent)) continue
+      this.report(agent, null)
+      // Waiting for work while a section runs (say, for a card to be drawn): rest beside the content, not on it.
+      if (this.runningId) this.restAgent(agent)
+    }
   }
 
-  /** Agents with no work keep drifting on screen, dodging the pointer, until the next section needs them. */
+  /** Everyone not already resting goes to rest: drifting on screen, dodging the pointer, until work turns up. */
   private beginIdle(): void {
-    if (this.reduced || this.disposed) return
+    for (const agent of this.agents) this.restAgent(agent)
+  }
+
+  private restAgent(agent: AgentState): void {
+    if (this.reduced || this.disposed || agent.stopIdle) return
     const { view } = this.deps
-    for (const agent of this.agents) {
-      if (!agent.visible) {
-        agent.position = this.deps.spawn()
-        view.setPosition(agent.agent.id, agent.position.x, agent.position.y)
-        view.setVisible(agent.agent.id, true)
-        agent.visible = true
-      }
-      agent.stopIdle?.()
-      agent.stopIdle = this.deps.startIdle({
-        agent: agent.agent,
-        view,
-        from: agent.position as Point,
-        rng: this.deps.rng,
-        setPosition: (p) => {
-          agent.position = p
-          view.setPosition(agent.agent.id, p.x, p.y)
-        },
-        viewport: this.deps.viewport,
-        pointer: this.deps.pointer,
-      })
+    if (!agent.visible) {
+      agent.position = this.deps.spawn()
+      view.setPosition(agent.agent.id, agent.position.x, agent.position.y)
+      view.setVisible(agent.agent.id, true)
+      agent.visible = true
     }
+    agent.stopIdle = this.deps.startIdle({
+      agent: agent.agent,
+      view,
+      from: agent.position as Point,
+      rng: this.deps.rng,
+      setPosition: (p) => {
+        agent.position = p
+        view.setPosition(agent.agent.id, p.x, p.y)
+      },
+      slot: { index: agent.index, count: this.agents.length },
+      viewport: this.deps.viewport,
+      pointer: this.deps.pointer,
+      obstacles: this.deps.obstacles,
+    })
   }
 
   private cancelIdle(): void {
@@ -339,6 +349,8 @@ export class Director {
       watchdog: setTimeout(() => this.snapItem(item), MOTION.gestureTimeout),
     }
     agent.run = run
+    agent.stopIdle?.()
+    agent.stopIdle = undefined
     this.report(agent, item.sectionId)
 
     const ctx = {

@@ -15,7 +15,7 @@ import { attachViewportObservers, evaluateViewport } from './observers'
 import { trackPointer } from './pointer'
 import type { PointerTracker } from './pointer'
 import type { CursorView, Point } from './types'
-import { viewportInOverlay } from './viewport'
+import { contentRects, pointerInOverlay, viewportInOverlay } from './viewport'
 
 // Pending items are hidden (and drop items start offset) only when motion is allowed. The data attributes
 // exist only once JS has run, so nothing is ever hidden without the director to reveal it.
@@ -42,6 +42,13 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
     }
 
     const origin = () => wrapperRef.current?.getBoundingClientRect() ?? { left: 0, top: 0 }
+    const measure = (el: HTMLElement) => {
+      const box = el.getBoundingClientRect()
+      const base = origin()
+      return { x: box.left - base.left, y: box.top - base.top, width: box.width, height: box.height }
+    }
+    // The fixed nav covers the top of the window; resting cursors use the area below it.
+    const navHeight = () => document.querySelector('header')?.getBoundingClientRect().height ?? 0
 
     const director = new Director({
       view,
@@ -54,11 +61,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
       startIdle,
       agents,
       rng: Math.random,
-      measure: (el) => {
-        const box = el.getBoundingClientRect()
-        const base = origin()
-        return { x: box.left - base.left, y: box.top - base.top, width: box.width, height: box.height }
-      },
+      measure,
       spawn: (): Point => {
         const { innerWidth: w, innerHeight: h } = window
         const base = origin()
@@ -68,8 +71,13 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
           edge === 0 ? { x: along * w, y: -40 } : edge === 1 ? { x: along * w, y: h + 40 } : edge === 2 ? { x: -40, y: along * h } : { x: w + 40, y: along * h }
         return { x: viewport.x - base.left, y: viewport.y - base.top }
       },
-      viewport: () => viewportInOverlay(origin(), { width: window.innerWidth, height: window.innerHeight }),
-      pointer: () => pointerRef.current?.get() ?? null,
+      viewport: () =>
+        viewportInOverlay(origin(), { width: window.innerWidth, height: window.innerHeight }, navHeight()),
+      pointer: () => {
+        const point = pointerRef.current?.get()
+        return point ? pointerInOverlay(point, origin()) : null
+      },
+      obstacles: () => contentRects(document, measure),
     })
     return { director, agents }
   })

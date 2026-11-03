@@ -1,5 +1,6 @@
 import { AGENTS } from './agents'
-import { fleeTarget, idleOffset, insetRect, isInside, randomHome, startIdle } from './idle'
+import { clearance, isInside } from './geometry'
+import { fleeTarget, idleOffset, startIdle } from './idle'
 import { distance } from './path'
 import type { Point, Rect } from './types'
 
@@ -23,36 +24,6 @@ describe('idleOffset', () => {
       seen.add(`${a.x.toFixed(3)},${a.y.toFixed(3)}`)
     }
     expect(seen.size).toBeGreaterThan(50)
-  })
-})
-
-describe('insetRect and isInside', () => {
-  const rect: Rect = { x: 10, y: 20, width: 300, height: 200 }
-
-  it('shrinks a rect by the margin on every side', () => {
-    expect(insetRect(rect, 80)).toEqual({ x: 90, y: 100, width: 140, height: 40 })
-  })
-
-  it('collapses to the centre line when the margin is bigger than the rect', () => {
-    expect(insetRect({ x: 0, y: 0, width: 100, height: 100 }, 80)).toEqual({ x: 50, y: 50, width: 0, height: 0 })
-  })
-
-  it('tells whether a point is inside a rect, edges included', () => {
-    expect(isInside({ x: 10, y: 20 }, rect)).toBe(true)
-    expect(isInside({ x: 310, y: 220 }, rect)).toBe(true)
-    expect(isInside({ x: 311, y: 100 }, rect)).toBe(false)
-    expect(isInside({ x: 100, y: 19 }, rect)).toBe(false)
-  })
-})
-
-describe('randomHome', () => {
-  const safe: Rect = { x: 100, y: 200, width: 400, height: 300 }
-
-  it('picks a point across the whole safe area', () => {
-    expect(randomHome(safe, () => 0)).toEqual({ x: 100, y: 200 })
-    const far = randomHome(safe, () => 0.999)
-    expect(far.x).toBeCloseTo(499.6)
-    expect(far.y).toBeCloseTo(499.7)
   })
 })
 
@@ -97,6 +68,14 @@ describe('fleeTarget', () => {
     expect(isInside(target, tiny)).toBe(true)
     expect(distance(target, pointer)).toBeGreaterThan(200)
   })
+
+  it('prefers a destination that is clear of content over one that lands on it', () => {
+    const pointer = { x: 500, y: 400 }
+    const content: Rect[] = [{ x: 700, y: 300, width: 200, height: 200 }] // exactly where "straight away" would land
+    const target = fleeTarget(pointer, { x: 540, y: 400 }, safe, () => 0, content)
+    expect(distance(target, pointer)).toBeGreaterThanOrEqual(280)
+    expect(clearance(target, content)).toBeGreaterThan(30)
+  })
 })
 
 describe('startIdle', () => {
@@ -110,19 +89,25 @@ describe('startIdle', () => {
   })
   afterEach(() => vi.unstubAllGlobals())
 
-  function start(options: { from?: Point; rng?: () => number } = {}) {
-    const state = { vp: { x: 0, y: 0, width: 1000, height: 700 } as Rect, pointer: null as Point | null }
+  function start(options: { from?: Point; rng?: () => number; slot?: { index: number; count: number } } = {}) {
+    const state = {
+      vp: { x: 0, y: 0, width: 1000, height: 700 } as Rect,
+      pointer: null as Point | null,
+      obstacles: [] as Rect[],
+    }
     const positions: Point[] = []
     const stop = startIdle({
       agent: AGENTS[0],
       view,
       from: options.from ?? { x: 500, y: 350 },
       rng: options.rng ?? seeded(11),
+      slot: options.slot ?? { index: 0, count: 2 },
       setPosition: (p) => {
         positions.push(p)
       },
       viewport: () => state.vp,
       pointer: () => state.pointer,
+      obstacles: () => state.obstacles,
     })
     /** Runs frames at 16ms steps; `each` can change the world just before each frame. */
     const run = (fromT: number, toT: number, each?: (t: number) => void) => {
@@ -140,7 +125,7 @@ describe('startIdle', () => {
     expect(positions[0]).toEqual({ x: 500, y: 350 })
   })
 
-  it('drifts gently and stays on screen when nothing disturbs it', () => {
+  it('glides to a resting spot, then drifts gently and stays on screen', () => {
     const { run, positions } = start()
     run(0, 5000)
     for (const p of positions) {
@@ -149,26 +134,66 @@ describe('startIdle', () => {
       expect(p.y).toBeGreaterThanOrEqual(-90)
       expect(p.y).toBeLessThanOrEqual(790)
     }
-    const steps = positions.slice(1).map((p, i) => distance(p, positions[i]))
+    const afterGlide = positions.slice(Math.ceil(700 / 16))
+    const steps = afterGlide.slice(1).map((p, i) => distance(p, afterGlide[i]))
     expect(Math.max(...steps)).toBeLessThan(12)
+  })
+
+  describe('beside a centred column of content', () => {
+    const vp: Rect = { x: 0, y: 64, width: 1800, height: 836 }
+    const column: Rect[] = [{ x: 380, y: 100, width: 1040, height: 760 }]
+
+    it('rests in the left gutter for an even slot and the right gutter for an odd one, clear of the content', () => {
+      for (const [index, side] of [
+        [0, 'left'],
+        [1, 'right'],
+        [2, 'left'],
+        [3, 'right'],
+      ] as const) {
+        const { run, state, positions } = start({ from: { x: 900, y: 450 }, slot: { index, count: 6 } })
+        state.vp = vp
+        state.obstacles = column
+        run(0, 4000)
+        const settled = positions.slice(Math.ceil(800 / 16))
+        for (const p of settled) {
+          expect(clearance(p, column), `slot ${index}`).toBeGreaterThan(0)
+          if (side === 'left') expect(p.x).toBeLessThan(380)
+          else expect(p.x).toBeGreaterThan(1420)
+        }
+      }
+    })
+
+    it('moves off content that ends up under it, once the page is still', () => {
+      const { run, state, positions } = start({ from: { x: 120, y: 300 }, slot: { index: 0, count: 6 } })
+      state.vp = vp
+      state.obstacles = column
+      run(0, 1500)
+      const rested = positions.at(-1)!
+      // A wide banner appears right over the resting cursor.
+      state.obstacles = [...column, { x: 0, y: rested.y - 60, width: 1800, height: 120 }]
+      expect(clearance(rested, state.obstacles)).toBe(0)
+      run(1516, 3600)
+      expect(clearance(positions.at(-1)!, state.obstacles)).toBeGreaterThan(0)
+    })
   })
 
   it('runs away when the pointer comes close, and ends up well clear of it', () => {
     const { run, state, positions } = start()
-    run(0, 400)
+    run(0, 1000)
     state.pointer = { x: positions.at(-1)!.x + 10, y: positions.at(-1)!.y }
     const pointerSpot = { ...state.pointer }
-    run(416, 2000)
+    run(1016, 3000)
     const end = positions.at(-1)!
     expect(distance(end, pointerSpot)).toBeGreaterThanOrEqual(280 - 90)
-    expect(isInside(end, state.vp)).toBe(true)
+    expect(isInside(end, { x: -20, y: -20, width: 1040, height: 740 })).toBe(true)
   })
 
   it('ignores a pointer that is far away or absent', () => {
     const { run, state, positions } = start()
     state.pointer = { x: 950, y: 680 }
     run(0, 3000)
-    const steps = positions.slice(1).map((p, i) => distance(p, positions[i]))
+    const afterGlide = positions.slice(Math.ceil(700 / 16))
+    const steps = afterGlide.slice(1).map((p, i) => distance(p, afterGlide[i]))
     expect(Math.max(...steps)).toBeLessThan(12)
   })
 
@@ -197,17 +222,17 @@ describe('startIdle', () => {
 
   it('stays put in the document while the page scrolls, then glides back into view once the viewport settles', () => {
     const { run, state, positions } = start()
-    run(0, 800)
+    run(0, 1000)
     const before = positions.at(-1)!
     // scroll down 3000px over 320ms
-    run(816, 1120, (t) => {
-      state.vp = { x: 0, y: ((t - 800) / 320) * 3000, width: 1000, height: 700 }
+    run(1016, 1320, (t) => {
+      state.vp = { x: 0, y: ((t - 1000) / 320) * 3000, width: 1000, height: 700 }
     })
     state.vp = { x: 0, y: 3000, width: 1000, height: 700 }
     const during = positions.at(-1)!
     expect(Math.abs(during.y - before.y)).toBeLessThan(120)
     expect(isInside(during, state.vp)).toBe(false)
-    run(1136, 2600)
+    run(1336, 2800)
     expect(isInside(positions.at(-1)!, state.vp)).toBe(true)
   })
 

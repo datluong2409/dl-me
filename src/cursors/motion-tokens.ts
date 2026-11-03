@@ -17,8 +17,19 @@ export const MOTION = {
   itemGap: 120,
   agentStagger: 140,
   idleAmplitude: { min: 40, max: 90 },
-  /** Idle cursors stay inside the viewport: `margin` px from its edges; they re-home once it has been still for `settleAfter` ms. */
-  roam: { margin: 100, settleAfter: 250, glide: 600 },
+  /** A resting cursor finds a new spot once the page has been still for `settleAfter` ms; every glide takes `glide` ms. */
+  roam: { settleAfter: 250, glide: 600 },
+  /** Where idle cursors rest: in the free space beside the content, spread evenly down the left and right sides. */
+  roost: {
+    edge: 48,
+    gap: 16,
+    tries: 80,
+    minRoom: 24,
+    maxRoom: 120,
+    drift: 0.45,
+    recheck: 500,
+    footprint: { width: 72, height: 36 },
+  },
   /** An idle cursor with the pointer within `radius` px glides to a spot at least `distance` px away. */
   flee: { radius: 120, distance: 280, duration: 600, cooldown: 400, ease: [0.22, 1, 0.36, 1] },
   /** Short flights between nearby children (words of a paragraph, chips of a card). */

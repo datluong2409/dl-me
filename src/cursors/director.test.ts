@@ -39,6 +39,7 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL, agentCount = 2) 
     spawn: () => ({ x: 5, y: 5 }),
     viewport: () => VIEWPORT,
     pointer: () => pointerAt,
+    obstacles: () => [],
   }
   const director = new Director(deps)
 
@@ -383,6 +384,8 @@ describe('Director: idle drift', () => {
     const first = (t.deps.startIdle as ReturnType<typeof vi.fn>).mock.calls[0][0]
     expect(first.agent.id).toBe('mai')
     expect(first.viewport()).toEqual(VIEWPORT)
+    expect(first.slot).toEqual({ index: 0, count: 2 })
+    expect(first.obstacles()).toEqual([])
     expect(first.pointer()).toEqual({ x: 7, y: 9 })
     t.setPointer(null)
     expect(first.pointer()).toBeNull()
@@ -410,6 +413,35 @@ describe('Director: idle drift', () => {
     expect(t.stops).toHaveLength(2)
     t.director.triggerSection('s2')
     expect(t.stops.every((stop) => stop.mock.calls.length > 0)).toBe(true)
+  })
+
+  it('sends an agent that has nothing to do to rest while its section is still running, and stops it when work turns up', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'card', 1, 'draw')
+    t.item('s', 'child', 1, 'type', true, 'card') // locked until the card is drawn
+    t.director.triggerSection('s')
+    await t.tick(200)
+    expect(t.ids()).toEqual(['card'])
+    expect(t.deps.startIdle).toHaveBeenCalledTimes(1) // kai has no work yet: she rests
+    expect((t.deps.startIdle as ReturnType<typeof vi.fn>).mock.calls[0][0].agent.id).toBe('kai')
+    expect(t.view.setVisible).toHaveBeenCalledWith('kai', true)
+    await t.tick(1000)
+    expect(t.deps.startIdle).toHaveBeenCalledTimes(1) // resting is not restarted every pass
+    t.calls[0].resolve()
+    await t.tick()
+    expect(t.ids()).toEqual(['card', 'child'])
+    expect(t.calls[1].ctx.agent.id).toBe('kai')
+    expect(t.stops[0]).toHaveBeenCalledTimes(1) // she stopped resting to take the child
+  })
+
+  it('keeps agents that have not been needed yet out of sight until a section runs', async () => {
+    const t = setup()
+    t.section('s')
+    t.item('s', 'a', 1)
+    await t.tick(500)
+    expect(t.deps.startIdle).not.toHaveBeenCalled()
+    expect(t.view.setVisible).not.toHaveBeenCalled()
   })
 
   it('goes back to drifting after snapRunning() finishes the running section', async () => {

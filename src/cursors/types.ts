@@ -61,6 +61,12 @@ export interface GestureContext {
 /** Resolves (never rejects) when aborted, so callers check `signal.aborted` afterwards. */
 export type GestureFn = (ctx: GestureContext) => Promise<void>
 
+/** Which agent this is (0-based) and how many agents there are, so resting spots can be spread evenly. */
+export interface RestSlot {
+  index: number
+  count: number
+}
+
 export interface IdleContext {
   agent: Agent
   view: CursorView
@@ -68,8 +74,11 @@ export interface IdleContext {
   from: Point
   rng: () => number
   setPosition(p: Point): void
-  /** The visible window in overlay coordinates, read fresh each frame (it moves as the page scrolls). */
+  slot: RestSlot
+  /** The area cursors may rest in, in overlay coordinates, read fresh each frame (it moves as the page scrolls). */
   viewport(): Rect
-  /** The pointer in viewport coordinates (CSS px from the window's top-left), or null when it is not over the page. */
+  /** The pointer in overlay coordinates, or null when it is not over the page. */
   pointer(): Point | null
+  /** Boxes of the page content, in overlay coordinates, for keeping resting cursors off the text. */
+  obstacles(): Rect[]
 }
