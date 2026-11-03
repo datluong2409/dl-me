@@ -84,8 +84,8 @@ export const profile: Profile = {
     l('HR & Recruitment', 'Nhân sự & Tuyển dụng'),
   ],
   quickFacts: [
-    { label: l('Experience', 'Kinh nghiệm'), value: l('TODO: years of experience', 'TODO: số năm kinh nghiệm') },
-    { label: l('Location', 'Địa điểm'), value: l('TODO: location', 'TODO: địa điểm') },
+    { label: l('Experience', 'Kinh nghiệm'), value: l('5+ years', '5+ năm') },
+    { label: l('Location', 'Địa điểm'), value: l('Da Nang, Vietnam', 'Đà Nẵng, Việt Nam') },
   ],
   contact: {
     email: 'mark.dat.code@gmail.com',
@@ -195,15 +195,37 @@ export const projects: Project[] = [
   },
 ]
 
-const todoEntry = (id: string): ExperienceEntry => ({
-  id,
-  role: l('TODO: job title', 'TODO: chức danh'),
-  company: l('TODO: company', 'TODO: công ty'),
-  period: l('TODO: period', 'TODO: thời gian'),
-  bullets: [
-    l('TODO: key achievement', 'TODO: thành tựu chính'),
-    l('TODO: key achievement', 'TODO: thành tựu chính'),
-  ],
-})
-
-export const experience: ExperienceEntry[] = [todoEntry('experience-1'), todoEntry('experience-2')]
+export const experience: ExperienceEntry[] = [
+  {
+    id: 'software-developer',
+    role: l('Software Developer', 'Software Developer'),
+    company: l('Enlab Software · Da Nang, Vietnam', 'Enlab Software · Đà Nẵng, Việt Nam'),
+    period: l('Oct 2021 – Present', 'Th10/2021 – Hiện tại'),
+    bullets: [
+      l(
+        'Full-time full-stack developer on Node.js and React products across healthcare, real estate, food ordering and HR.',
+        'Full-stack developer toàn thời gian với Node.js và React, cho các sản phẩm y tế, bất động sản, đặt đồ ăn và nhân sự.',
+      ),
+      l(
+        'Build secure REST APIs, design schemas and tune queries on SQL Server and PostgreSQL, and ship with CI/CD.',
+        'Xây dựng REST API an toàn, thiết kế schema, tối ưu truy vấn trên SQL Server và PostgreSQL, triển khai bằng CI/CD.',
+      ),
+    ],
+  },
+  {
+    id: 'internship-trainee',
+    role: l('Internship Trainee', 'Thực tập sinh'),
+    company: l('Enlab Software · Da Nang, Vietnam', 'Enlab Software · Đà Nẵng, Việt Nam'),
+    period: l('Sep 2021 · 1 month', 'Th9/2021 · 1 tháng'),
+    bullets: [
+      l(
+        'Built backend endpoints with ASP.NET Web API while learning the team’s workflow.',
+        'Xây dựng các endpoint backend bằng ASP.NET Web API và làm quen quy trình làm việc của nhóm.',
+      ),
+      l(
+        'Moved on to the Software Developer role at the end of the internship.',
+        'Chuyển sang vị trí Software Developer ngay sau kỳ thực tập.',
+      ),
+    ],
+  },
+]

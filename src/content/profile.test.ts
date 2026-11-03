@@ -51,16 +51,19 @@ describe('profile content', () => {
     expect(profile.photos).toEqual({})
   })
 
-  it('marks owner-supplied facts as TODO placeholders', () => {
-    expect(profile.quickFacts).toHaveLength(2)
-    for (const fact of profile.quickFacts) {
-      expect(fact.value.en.startsWith('TODO')).toBe(true)
-      expect(fact.value.vi.startsWith('TODO')).toBe(true)
+  it('fills the quick facts from LinkedIn', () => {
+    expect(profile.quickFacts.map((f) => f.value.en)).toEqual(['5+ years', 'Da Nang, Vietnam'])
+  })
+
+  it('lists the two Enlab Software roles, newest first, with no placeholders left', () => {
+    expect(experience.map((e) => e.role.en)).toEqual(['Software Developer', 'Internship Trainee'])
+    for (const entry of experience) {
+      expect(entry.company.en.startsWith('Enlab Software')).toBe(true)
+      expect(entry.bullets).toHaveLength(2)
     }
-    expect(experience).toHaveLength(2)
     for (const text of collectLocalized(experience)) {
-      expect(text.en.startsWith('TODO')).toBe(true)
-      expect(text.vi.startsWith('TODO')).toBe(true)
+      expect(text.en.startsWith('TODO')).toBe(false)
+      expect(text.vi.startsWith('TODO')).toBe(false)
     }
   })
 })

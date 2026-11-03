@@ -34,7 +34,9 @@ describe('About', () => {
     renderAbout()
     expect(screen.getByText('Experience')).toBeInTheDocument()
     expect(screen.getByText('Location')).toBeInTheDocument()
-    expect(screen.getAllByText(/^TODO/)).toHaveLength(2)
+    expect(screen.getByText(fullText('5+ years'))).toBeInTheDocument()
+    expect(screen.getByText(fullText('Da Nang, Vietnam'))).toBeInTheDocument()
+    expect(screen.queryByText(/TODO/)).toBeNull()
     expect(screen.getByRole('img', { name: /Photo.*about/ })).toBeInTheDocument()
   })
 
