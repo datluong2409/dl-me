@@ -50,20 +50,30 @@ export function restingSpot(options: {
           to: viewport.x + viewport.width - 8,
         }
 
-  for (const isLeft of [left, !left]) {
+  const widthOf = (isLeft: boolean) => {
     const { from, to } = gutterOf(isLeft)
-    const available = to - fw - from
-    if (available < roost.minRoom) continue
-    const x = from + available * (0.15 + 0.7 * rng())
-    return { home: { x, y }, room: Math.max(0, Math.min(available / 2, band / 2, roost.maxRoom)) }
+    return { from, available: to - fw - from }
+  }
+  const sides = [left, !left].map((isLeft) => ({ isLeft, ...widthOf(isLeft) })).filter((g) => g.available >= roost.minRoom)
+  if (sides.length > 0) {
+    const gutter = sides[0]
+    // Both gutters usable: each side has its own evenly spaced column. Only one: everyone shares it, evenly spaced.
+    const solo = sides.length === 1
+    const rows = solo ? slot.count : sideCount
+    const row = solo ? slot.index : Math.floor(slot.index / 2)
+    const rowHeight = safe.height / Math.max(1, rows)
+    const rowY = clamp(safe.y + rowHeight * (row + 0.5) + (rng() - 0.5) * rowHeight * 0.4, safe.y, safe.y + safe.height)
+    const x = gutter.from + gutter.available * (0.15 + 0.7 * rng())
+    return { home: { x, y: rowY }, room: Math.max(0, Math.min(gutter.available / 2, rowHeight / 2, roost.maxRoom)) }
   }
 
   // No gutter is wide enough: take the spot with the most clear space, leaning toward this slot's side and height.
-  const anchor = { x: left ? safe.x : safe.x + safe.width, y }
+  const maxX = viewport.x + viewport.width - fw - 8 // keep the name tag inside the window too
+  const anchor = { x: left ? safe.x : maxX, y }
   let best: Point = { x: anchor.x, y }
   let bestScore = -Infinity
   for (let i = 0; i < roost.tries; i++) {
-    const candidate = { x: safe.x + rng() * safe.width, y: safe.y + rng() * safe.height }
+    const candidate = { x: safe.x + rng() * Math.max(0, maxX - safe.x), y: safe.y + rng() * safe.height }
     const score = Math.min(clearance(candidate, onScreen), 300) - 0.02 * Math.hypot(candidate.x - anchor.x, candidate.y - anchor.y)
     if (score > bestScore) {
       best = candidate

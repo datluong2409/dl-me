@@ -93,3 +93,30 @@ describe('restingSpot when there is little or no free space', () => {
     expect(AGENTS.length).toBe(6)
   })
 })
+
+describe('restingSpot on medium and small screens', () => {
+  it('uses the one gutter that is wide enough for every slot, spaced evenly from top to bottom', () => {
+    const viewport: Rect = { x: 0, y: 64, width: 1280, height: 736 }
+    const column: Rect[] = [{ x: 112, y: 100, width: 1038, height: 700 }] // only the right side has room
+    const all = spots(viewport, column)
+    const ys = all.map((s) => s.home.y)
+    for (let i = 1; i < ys.length; i++) expect(ys[i] - ys[i - 1], `gap before slot ${i}`).toBeGreaterThan(60)
+    for (const spot of all) {
+      expect(spot.home.x).toBeGreaterThanOrEqual(1150 + 16)
+      expect(clearance(spot.home, column)).toBeGreaterThan(0)
+    }
+  })
+
+  it('keeps the whole cursor, name tag included, inside the window even when it has to avoid the content', () => {
+    const viewport: Rect = { x: 0, y: 64, width: 1024, height: 704 }
+    const column: Rect[] = [{ x: 32, y: 100, width: 960, height: 400 }] // no gutters, a free band below
+    for (let seed = 1; seed <= 60; seed++) {
+      for (let index = 0; index < 6; index++) {
+        const spot = restingSpot({ viewport, obstacles: column, slot: { index, count: 6 }, rng: seeded(seed) })
+        expect(spot.home.x + 72, `seed ${seed} slot ${index}`).toBeLessThanOrEqual(viewport.x + viewport.width)
+        expect(spot.home.y + 36, `seed ${seed} slot ${index}`).toBeLessThanOrEqual(viewport.y + viewport.height)
+        expect(spot.home.x).toBeGreaterThanOrEqual(viewport.x)
+      }
+    }
+  })
+})
