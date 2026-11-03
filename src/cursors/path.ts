@@ -1,6 +1,11 @@
 import { MOTION } from './motion-tokens'
 import type { Point } from './types'
 
+/** Linear interpolation that lands exactly on `b` at t = 1. */
+export function lerp(a: number, b: number, t: number): number {
+  return t >= 1 ? b : a + (b - a) * t
+}
+
 export function distance(a: Point, b: Point): number {
   return Math.hypot(b.x - a.x, b.y - a.y)
 }
