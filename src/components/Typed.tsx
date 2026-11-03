@@ -5,7 +5,7 @@ import type { BlockProps } from './Block'
 
 interface TypedProps extends Omit<BlockProps, 'gesture' | 'children'> {
   text: string
-  /** Rendered after the words (an icon, say) and not typed. */
+  /** Shown after the last word (an icon, say); it appears with the typing instead of ahead of it. */
   trailing?: ReactNode
 }
 
@@ -25,7 +25,11 @@ export function Typed({ as = 'p', text, trailing, ...rest }: TypedProps) {
           </span>
         </Fragment>
       ))}
-      {trailing}
+      {trailing != null && (
+        <span data-word="" className="inline-block">
+          {trailing}
+        </span>
+      )}
     </Block>
   )
 }

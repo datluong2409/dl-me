@@ -42,11 +42,13 @@ describe('Typed', () => {
     expect(screen.getByRole('link', { name: 'HireZin' })).toHaveAttribute('href', 'https://example.com/')
   })
 
-  it('renders trailing content after the words, outside the typed words', () => {
-    render(<Typed as="span" order={1} text="Go" trailing={<i data-testid="icon" />} data-testid="t" />)
+  it('types trailing content too, as the last unit, so an icon never shows before the words', () => {
+    render(<Typed as="span" order={1} text="Go now" trailing={<i data-testid="icon" />} data-testid="t" />)
     const el = screen.getByTestId('t')
-    expect(el.lastElementChild).toBe(screen.getByTestId('icon'))
-    expect(el.querySelectorAll('[data-word]')).toHaveLength(1)
+    const units = [...el.querySelectorAll(':scope > [data-word]')]
+    expect(units).toHaveLength(3)
+    expect(units.at(-1)).toContainElement(screen.getByTestId('icon'))
+    expect(el.lastElementChild).toBe(units.at(-1))
   })
 
   it('registers as a type item', () => {

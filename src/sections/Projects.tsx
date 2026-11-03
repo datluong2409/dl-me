@@ -36,8 +36,8 @@ export function Projects() {
                     order={2}
                     href={project.href}
                     text={project.name}
-                    className="inline-flex items-center gap-1 after:absolute after:inset-0"
-                    trailing={<ArrowUpRight aria-hidden="true" size={18} weight="bold" />}
+                    className="after:absolute after:inset-0"
+                    trailing={<ArrowUpRight aria-hidden="true" size={18} weight="bold" className="ml-1 inline align-text-bottom" />}
                   />
                 </h3>
                 <Block
