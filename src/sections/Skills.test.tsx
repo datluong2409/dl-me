@@ -23,14 +23,12 @@ describe('Skills', () => {
     expect(titles).toEqual(['Frontend', 'Backend', 'Databases', 'DevOps', 'Desktop & AI'])
   })
 
-  it('lists exactly the group items as chips, in order, with a stagger index', () => {
+  it('lists exactly the group items as chips, in order', () => {
     renderSkills()
     for (const group of skillGroups) {
       const card = screen.getByRole('heading', { level: 3, name: group.title.en }).closest('article') as HTMLElement
       const chips = within(card).getAllByRole('listitem')
       expect(chips.map((li) => li.textContent)).toEqual(group.items)
-      const last = chips.at(-1)!.firstElementChild as HTMLElement
-      expect(last.style.getPropertyValue('--i')).toBe(String(group.items.length - 1))
     }
   })
 

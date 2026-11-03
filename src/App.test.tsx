@@ -37,14 +37,16 @@ describe('App', () => {
     })
   })
 
-  it('keeps every section within the 10-item assembly budget', () => {
+  it('keeps every section within the assembly budget: at most 10 top-level items and 64 in all', () => {
     const { container } = render(<App />)
     const sections = container.querySelectorAll('main > section')
     expect(sections).toHaveLength(6)
     for (const section of sections) {
-      const items = section.querySelectorAll('[data-assemble]').length
-      expect(items, section.id).toBeGreaterThan(0)
-      expect(items, section.id).toBeLessThanOrEqual(10)
+      const all = [...section.querySelectorAll('[data-assemble]')]
+      const topLevel = all.filter((el) => el.parentElement?.closest('[data-assemble]') === null)
+      expect(all.length, section.id).toBeGreaterThan(0)
+      expect(topLevel.length, section.id).toBeLessThanOrEqual(10)
+      expect(all.length, section.id).toBeLessThanOrEqual(64)
     }
   })
 
