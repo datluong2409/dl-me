@@ -24,6 +24,12 @@ describe('Nav', () => {
     expect(within(primary).getByRole('link', { name: 'Contact' }).className).toContain('bg-accent')
   })
 
+  it('gives every primary link a 44px minimum hit height', () => {
+    renderNav()
+    const primary = screen.getByRole('navigation', { name: 'Primary' })
+    for (const link of within(primary).getAllByRole('link')) expect(link.className).toContain('min-h-11')
+  })
+
   it('has the name, the language toggle and the presence bar', () => {
     renderNav()
     expect(screen.getByRole('link', { name: 'Dat Luong' })).toHaveAttribute('href', '#hero')
@@ -55,6 +61,11 @@ describe('Nav', () => {
     const panel = document.getElementById('mobile-menu')!
     await userEvent.click(within(panel).getByRole('link', { name: 'Projects' }))
     expect(document.getElementById('mobile-menu')).toBeNull()
+  })
+
+  it('gives the name link a 44px minimum hit height', () => {
+    renderNav()
+    expect(screen.getByRole('link', { name: 'Dat Luong' }).className).toContain('min-h-11')
   })
 
   it('gives the menu button a 44px minimum hit area', () => {

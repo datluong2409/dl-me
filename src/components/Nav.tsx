@@ -29,17 +29,24 @@ export function Nav() {
     <>
       <header className="fixed inset-x-0 top-0 z-40 h-16 border-b border-border bg-bg motion-safe:animate-fade-in">
         <div className="mx-auto flex h-full max-w-[1120px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
-          <a href="#hero" className="font-mono text-sm font-medium text-fg no-underline">
+          <a href="#hero" className="inline-flex min-h-11 items-center font-mono text-sm font-medium text-fg no-underline">
             {profile.name}
           </a>
 
           <nav aria-label={tr('nav.label')} className="hidden items-center gap-6 md:flex">
             {PAGE_LINKS.map((id) => (
-              <a key={id} href={`#${id}`} className="text-sm text-fg-muted transition-colors hover:text-fg">
+              <a
+                key={id}
+                href={`#${id}`}
+                className="inline-flex min-h-11 items-center text-sm text-fg-muted transition-colors hover:text-fg"
+              >
                 {tr(`nav.${id}`)}
               </a>
             ))}
-            <a href="#contact" className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-bg">
+            <a
+              href="#contact"
+              className="inline-flex min-h-11 items-center rounded-full bg-accent px-4 text-sm font-semibold text-bg"
+            >
               {tr('nav.contact')}
             </a>
           </nav>
