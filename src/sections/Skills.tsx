@@ -2,6 +2,7 @@ import { Card } from '../components/Card'
 import { Chip } from '../components/Chip'
 import { Container } from '../components/Container'
 import { SectionHeading } from '../components/SectionHeading'
+import { Typed } from '../components/Typed'
 import { skillGroups } from '../content/profile'
 import { Section } from '../cursors/Section'
 import { useLang } from '../i18n/LangProvider'
@@ -17,15 +18,17 @@ export function Skills() {
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {skillGroups.map((group, index) => (
             <Card key={group.id} as="article" order={index + 2} className="flex flex-col gap-4">
-              <h3 className="text-lg font-semibold">{t(group.title)}</h3>
+              <Typed as="h3" order={1} text={t(group.title)} className="text-lg font-semibold" />
               <ul className="flex flex-wrap gap-2">
                 {group.items.map((item, itemIndex) => (
                   <li key={item}>
-                    <Chip index={itemIndex}>{item}</Chip>
+                    <Chip index={itemIndex + 1}>{item}</Chip>
                   </li>
                 ))}
               </ul>
-              {group.note && <p className="text-sm text-fg-muted">{t(group.note)}</p>}
+              {group.note && (
+                <Typed order={group.items.length + 2} text={t(group.note)} className="text-sm text-fg-muted" />
+              )}
             </Card>
           ))}
         </div>

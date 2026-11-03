@@ -2,6 +2,7 @@ import { render, screen } from '@testing-library/react'
 import { Footer } from '../components/Footer'
 import { LangProvider } from '../i18n/LangProvider'
 import { profile } from '../content/profile'
+import { fullText } from '../test/text'
 import { Contact } from './Contact'
 
 function renderWithLang(ui: React.ReactElement, lang: 'en' | 'vi' = 'en') {
@@ -16,7 +17,7 @@ describe('Contact', () => {
     const { container } = renderWithLang(<Contact />)
     expect(container.querySelector('section#contact')).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: 'Say hello' })).toBeInTheDocument()
-    expect(screen.getByText("Let's build something together.")).toBeInTheDocument()
+    expect(screen.getByText(fullText("Let's build something together."))).toBeInTheDocument()
   })
 
   it('links to email, LinkedIn and GitHub in the same tab', () => {

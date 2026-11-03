@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { LangProvider } from '../i18n/LangProvider'
 import { skillGroups } from '../content/profile'
+import { fullText } from '../test/text'
 import { Skills } from './Skills'
 
 function renderSkills(lang: 'en' | 'vi' = 'en') {
@@ -34,7 +35,7 @@ describe('Skills', () => {
 
   it('shows the databases note and translates it', () => {
     renderSkills('vi')
-    expect(screen.getByText('Index, tối ưu truy vấn, thiết kế schema')).toBeInTheDocument()
+    expect(screen.getByText(fullText('Index, tối ưu truy vấn, thiết kế schema'))).toBeInTheDocument()
     expect(screen.getByRole('heading', { level: 3, name: 'Cơ sở dữ liệu' })).toBeInTheDocument()
   })
 })

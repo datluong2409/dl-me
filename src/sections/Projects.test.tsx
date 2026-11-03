@@ -1,6 +1,7 @@
 import { render, screen, within } from '@testing-library/react'
 import { LangProvider } from '../i18n/LangProvider'
 import { projects } from '../content/profile'
+import { fullText } from '../test/text'
 import { Projects } from './Projects'
 
 function renderProjects(lang: 'en' | 'vi' = 'en') {
@@ -34,8 +35,8 @@ describe('Projects', () => {
     renderProjects()
     for (const project of projects) {
       const card = screen.getByRole('heading', { level: 3, name: project.name }).closest('article') as HTMLElement
-      expect(within(card).getByText(project.summary.en)).toBeInTheDocument()
-      for (const tag of project.stack) expect(within(card).getByText(tag)).toBeInTheDocument()
+      expect(within(card).getByText(fullText(project.summary.en))).toBeInTheDocument()
+      expect(within(card).getAllByRole('listitem').map((li) => li.textContent)).toEqual(project.stack)
       expect(within(card).getByRole('img', { name: new RegExp(`project-${project.slug}`) })).toBeInTheDocument()
     }
     expect(screen.getAllByText('Live')).toHaveLength(2)
@@ -45,7 +46,7 @@ describe('Projects', () => {
 
   it('is translated when the language is Vietnamese', () => {
     renderProjects('vi')
-    expect(screen.getByText(projects[0].summary.vi)).toBeInTheDocument()
+    expect(screen.getByText(fullText(projects[0].summary.vi))).toBeInTheDocument()
     expect(screen.getAllByText('Đang chạy')).toHaveLength(2)
   })
 })

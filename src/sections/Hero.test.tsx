@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { LangProvider } from '../i18n/LangProvider'
 import { profile } from '../content/profile'
+import { fullText } from '../test/text'
 import { Hero } from './Hero'
 
 function renderHero(lang: 'en' | 'vi' = 'en') {
@@ -34,8 +35,8 @@ describe('Hero', () => {
 
   it('shows the role, the pitch and the availability chip', () => {
     renderHero()
-    expect(screen.getByText(profile.role.en)).toBeInTheDocument()
-    expect(screen.getByText(profile.pitch.en)).toBeInTheDocument()
+    expect(screen.getByText(fullText(profile.role.en))).toBeInTheDocument()
+    expect(screen.getByText(fullText(profile.pitch.en))).toBeInTheDocument()
     expect(screen.getByText('Open to work')).toBeInTheDocument()
   })
 

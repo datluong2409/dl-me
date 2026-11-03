@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { LangProvider } from '../i18n/LangProvider'
 import { profile } from '../content/profile'
+import { fullText } from '../test/text'
 import { About } from './About'
 
 function renderAbout(lang: 'en' | 'vi' = 'en') {
@@ -19,8 +20,8 @@ describe('About', () => {
     const { container } = renderAbout()
     expect(container.querySelector('section#about')).not.toBeNull()
     expect(screen.getByRole('heading', { level: 2, name: 'Who I am' })).toBeInTheDocument()
-    expect(screen.getByText(profile.about.en)).toBeInTheDocument()
-    expect(screen.getByText(profile.openTo.en)).toBeInTheDocument()
+    expect(screen.getByText(fullText(profile.about.en))).toBeInTheDocument()
+    expect(screen.getByText(fullText(profile.openTo.en))).toBeInTheDocument()
   })
 
   it('lists the four domains as chips', () => {

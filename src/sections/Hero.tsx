@@ -1,6 +1,7 @@
 import { Block } from '../components/Block'
 import { Container } from '../components/Container'
 import { Photo } from '../components/Photo'
+import { Typed } from '../components/Typed'
 import { profile } from '../content/profile'
 import { Section } from '../cursors/Section'
 import { useLang } from '../i18n/LangProvider'
@@ -13,7 +14,7 @@ export function Hero() {
       <Container className="grid items-center gap-12 lg:grid-cols-[1.4fr_1fr]">
         <div className="flex flex-col items-start gap-6">
           <Block
-            gesture="drop"
+            gesture="stamp"
             order={2}
             className="inline-flex items-center gap-2 rounded-full border border-border bg-surface px-3 py-1 font-mono text-xs text-fg"
           >
@@ -21,33 +22,36 @@ export function Hero() {
             {t(profile.availability)}
           </Block>
 
-          <Block as="h1" gesture="drop" order={3} className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] font-semibold tracking-tight">
-            {t(profile.heroGreeting)}
-          </Block>
+          <Typed
+            as="h1"
+            order={3}
+            text={t(profile.heroGreeting)}
+            className="text-[clamp(2.5rem,6vw,4.5rem)] leading-[1.05] font-semibold tracking-tight"
+          />
+          <Typed order={4} text={t(profile.role)} className="max-w-xl text-xl text-fg" />
+          <Typed order={5} text={t(profile.pitch)} className="max-w-xl text-fg-muted" />
 
-          <Block as="p" gesture="drop" order={4} className="max-w-xl text-xl text-fg">
-            {t(profile.role)}
-          </Block>
-
-          <Block as="p" gesture="drop" order={5} className="max-w-xl text-fg-muted">
-            {t(profile.pitch)}
-          </Block>
-
-          <Block gesture="draw" order={6} className="flex flex-wrap gap-3">
-            <a
+          <Block gesture="group" order={6} className="flex flex-wrap gap-3">
+            <Block
+              as="a"
+              gesture="draw"
+              order={1}
               href="#contact"
               className="inline-flex min-h-11 items-center rounded-full bg-accent px-6 font-semibold text-bg"
             >
-              {tr('cta.contact')}
-            </a>
+              <Typed as="span" order={1} text={tr('cta.contact')} />
+            </Block>
             {profile.cvUrl && (
-              <a
+              <Block
+                as="a"
+                gesture="draw"
+                order={2}
                 href={profile.cvUrl}
                 download
                 className="inline-flex min-h-11 items-center rounded-full border border-border px-6 font-semibold text-fg transition-colors hover:bg-surface"
               >
-                {tr('cta.cv')}
-              </a>
+                <Typed as="span" order={1} text={tr('cta.cv')} />
+              </Block>
             )}
           </Block>
         </div>

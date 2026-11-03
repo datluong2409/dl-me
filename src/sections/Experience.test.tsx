@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
 import { LangProvider } from '../i18n/LangProvider'
+import { fullText } from '../test/text'
 import { Experience } from './Experience'
 
 function renderExperience(lang: 'en' | 'vi' = 'en') {
@@ -24,14 +25,14 @@ describe('Experience', () => {
 
   it('shows the TODO placeholders verbatim until the owner fills them in', () => {
     renderExperience()
-    expect(screen.getAllByText('TODO: job title')).toHaveLength(2)
-    expect(screen.getAllByText('TODO: company')).toHaveLength(2)
-    expect(screen.getAllByText('TODO: period')).toHaveLength(2)
-    expect(screen.getAllByText('TODO: key achievement')).toHaveLength(4)
+    expect(screen.getAllByText(fullText('TODO: job title'))).toHaveLength(2)
+    expect(screen.getAllByText(fullText('TODO: company'))).toHaveLength(2)
+    expect(screen.getAllByText(fullText('TODO: period'))).toHaveLength(2)
+    expect(screen.getAllByText(fullText('TODO: key achievement'))).toHaveLength(4)
   })
 
   it('shows the Vietnamese placeholders in Vietnamese', () => {
     renderExperience('vi')
-    expect(screen.getAllByText('TODO: chức danh')).toHaveLength(2)
+    expect(screen.getAllByText(fullText('TODO: chức danh'))).toHaveLength(2)
   })
 })
