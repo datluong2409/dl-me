@@ -29,6 +29,7 @@ const entries = {
   'presence.editing': { en: 'is editing', vi: 'đang chỉnh' },
   'presence.online': { en: 'is online', vi: 'đang trực tuyến' },
   'footer.assembled': { en: 'Assembled by', vi: 'Được lắp ráp bởi' },
+  'footer.and': { en: 'and', vi: 'và' },
 
   'section.hero': { en: 'Intro', vi: 'Mở đầu' },
   'section.about': { en: 'About', vi: 'Giới thiệu' },

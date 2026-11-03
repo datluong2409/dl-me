@@ -5,6 +5,7 @@ import { LangProvider } from '../i18n/LangProvider'
 import { Block } from './Block'
 import { Card } from './Card'
 import { Chip } from './Chip'
+import { Container } from './Container'
 import { SectionHeading } from './SectionHeading'
 
 beforeEach(() => {
@@ -89,5 +90,13 @@ describe('SectionHeading', () => {
     expect(h2).toHaveAttribute('id', 'projects-title')
     expect(screen.getByText('Work')).toBeInTheDocument()
     expect(h2.closest('[data-gesture]')).toHaveAttribute('data-gesture', 'drop')
+  })
+})
+
+describe('Container', () => {
+  it('centres content at the 1120px page width with responsive gutters', () => {
+    render(<Container data-testid="c">x</Container>)
+    const className = screen.getByTestId('c').className
+    for (const expected of ['mx-auto', 'max-w-[1120px]', 'px-4', 'sm:px-6', 'lg:px-8']) expect(className).toContain(expected)
   })
 })
