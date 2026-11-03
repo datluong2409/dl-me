@@ -8,6 +8,7 @@ const entries = {
   },
   skip: { en: 'Skip to content', vi: 'Chuyển tới nội dung' },
 
+  'nav.label': { en: 'Primary', vi: 'Điều hướng chính' },
   'nav.about': { en: 'About', vi: 'Giới thiệu' },
   'nav.skills': { en: 'Skills', vi: 'Kỹ năng' },
   'nav.projects': { en: 'Projects', vi: 'Dự án' },
