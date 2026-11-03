@@ -24,6 +24,7 @@ Mọi task đều phải tuân thủ các mục dưới đây (giá trị chép 
 - Ngưỡng kích hoạt `0.35 × min(chiều cao section, chiều cao viewport)`; mỗi section ≤ 10 item; mỗi section chỉ chạy một lần; section mới kích hoạt nhất thắng, section đang chạy được chốt ngay.
 - Ngôn ngữ: `localStorage['dl:lang']` (bọc try/catch) → `detectLang(navigator.languages)` → `en`; cập nhật `<html lang>` và `document.title`; nút EN | VI là `button` có `aria-pressed`. Mọi chuỗi hiển thị nằm trong `src/content/profile.ts` hoặc `src/i18n/messages.ts`, dạng `{ en, vi }`. Tiếng Việt xưng "tôi". Chuỗi placeholder bắt đầu bằng `TODO`.
 - Truy cập: vùng bấm ≥ 44×44px trên mobile, khoảng cách ≥ 8px; không cuộn ngang ở 375px; một `<h1>`; heading tuần tự; `prefers-reduced-motion` tắt con trỏ, ẩn-pending, smooth scroll.
+- **Styling chỉ bằng class Tailwind** (yêu cầu của chủ dự án, thêm giữa lúc thực thi). Không viết luật CSS có selector. File `.css` chỉ được chứa `@import`, `@source` và khối `@theme` (token, keyframes); `src/styles/no-custom-css.test.ts` kiểm tra điều này. Trạng thái động dùng variant (`motion-safe:`, `group-data-[...]:`, `data-[...]:`, `[&_...]:`); giá trị tính toán lúc chạy dùng `style` nội tuyến. Tailwind chỉ quét `index.html` và `src` (`source(none)`), không quét `.claude/`.
 - Ngân sách: JS ban đầu ≤ 150 KB gzip; CLS < 0.1.
 
 ## Review Focus
@@ -55,7 +56,7 @@ scripts/check-bundle.mjs
 public/            _headers  favicon.svg  robots.txt  og.png
 src/main.tsx  App.tsx
 src/test/setup.ts
-src/styles/        tokens.css  global.css  cursors.css
+src/styles/        tokens.css  global.css  (chỉ @import/@theme/@source; test no-custom-css.test.ts)
 src/i18n/          lang.ts  messages.ts  LangProvider.tsx
 src/content/       sections.ts  profile.ts
 src/cursors/       types.ts agents.ts motion-tokens.ts scheduler.ts path.ts animate.ts idle.ts
@@ -288,7 +289,7 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
 ### Task 7: Cử chỉ, chuyển động rảnh, lớp hiển thị con trỏ
 
 **Files:**
-- Create: `src/cursors/animate.ts`, `src/cursors/gestures/travel.ts`, `src/cursors/gestures/draw.ts`, `src/cursors/gestures/drop.ts`, `src/cursors/idle.ts`, `src/cursors/cursor-view.ts`, `src/styles/cursors.css`
+- Create: `src/cursors/animate.ts`, `src/cursors/gestures/travel.ts`, `src/cursors/gestures/draw.ts`, `src/cursors/gestures/drop.ts`, `src/cursors/idle.ts`, `src/cursors/cursor-view.ts`
 - Test: `src/cursors/gestures/draw.test.ts`, `src/cursors/gestures/drop.test.ts`, `src/cursors/idle.test.ts`, `src/cursors/cursor-view.test.ts`
 
 **Interfaces:**
@@ -322,9 +323,9 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
   - `draw`: travel → góc trên-trái; tween `draw` (thời lượng nội suy giữa `min` và `max` theo diện tích khung) mở rộng ghost và kéo con trỏ theo góc dưới-phải; tween `fadeIn` cho `opacity` của item; `finally` luôn `showGhost(id, null)`.
   - `drop`: travel → vị trí khay (`rect` cộng offset, cộng điểm cầm); tween `drop` đưa `transform` và vị trí con trỏ về đích bằng cùng một giá trị tiến trình; `finally` luôn `setSelection(el, null)`.
   - `startIdle`: vòng `requestAnimationFrame` dùng `idleOffset` quanh một điểm trong `bounds`, biên độ lấy ngẫu nhiên trong `MOTION.idleAmplitude`; trả hàm dừng.
-  - `createCursorView`: mỗi agent có `div.cursor[data-agent]` (mũi tên SVG tô màu agent, pill tên chữ `--color-bg` nền màu agent, font mono) và `div.ghost[data-agent]` (viền 1.5px màu agent, 4 tay nắm góc); `setSelection` đặt `outline: 1.5px solid <màu>; outline-offset: 2px`. `cursors.css`: `.cursor` `position:absolute; top:0; left:0; opacity:0; transition: opacity 180ms`; `[data-visible="false"]` mờ dần 400ms; ghost chuyển opacity 120ms; `will-change: transform` chỉ trên `.cursor`.
+  - `createCursorView`: mỗi agent có `div.cursor[data-agent]` (mũi tên SVG tô màu agent, pill tên chữ `--color-bg` nền màu agent, font mono) và `div.ghost[data-agent]` (viền 1.5px màu agent, 4 tay nắm góc); `setSelection` đặt `outline: 1.5px solid <màu>; outline-offset: 2px`. Không có file CSS: style bằng class Tailwind gán qua `className` trong `cursor-view.ts` (ví dụ cursor `absolute top-0 left-0 opacity-0 transition-opacity duration-200 will-change-transform data-[visible=false]:duration-[400ms]`, ghost `transition-opacity duration-[120ms]`), toạ độ và kích thước đặt bằng `style` nội tuyến.
 - [ ] **Step 4: Chạy test, phải PASS.**
-- [ ] **Step 5: Commit.** `git add src/cursors src/styles/cursors.css && git commit -m "feat: add draw/drop gestures, idle drift, and cursor view"`.
+- [ ] **Step 5: Commit.** `git add src/cursors && git commit -m "feat: add draw/drop gestures, idle drift, and cursor view"`.
 
 ---
 
@@ -332,7 +333,7 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
 
 **Files:**
 - Create: `src/cursors/context.ts`, `src/cursors/observers.ts`, `src/cursors/AssemblyProvider.tsx`, `src/cursors/Section.tsx`, `src/cursors/useAssemble.ts`, `src/cursors/usePresence.ts`
-- Modify: `src/styles/global.css` (thêm CSS ẩn-pending và import `cursors.css`)
+- (không sửa file CSS: luật ẩn-pending là class Tailwind trên wrapper của `AssemblyProvider`)
 - Test: `src/cursors/observers.test.ts`, `src/cursors/useAssemble.test.tsx`
 
 **Interfaces:**
@@ -366,7 +367,7 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
   - `AssemblyProvider`: tạo `Director` bằng `useState(() => …)` với `view` chuyển tiếp trễ (no-op tới khi overlay mount), `agents = activeAgents(window.innerWidth)`, `gestures` từ `createDrawGesture/createDropGesture(motionTween)`, `startIdle`, `rng: Math.random`, `measure` quy về toạ độ wrapper, `spawn` chọn ngẫu nhiên một điểm trên rìa viewport. Render wrapper `position: relative; overflow-x: clip` chứa `children` và overlay (`aria-hidden`, class theo Global Constraints) rồi tạo `createCursorView` trong `useEffect`. Trong effect: `director.start()`; `director.setReducedMotion(mq.matches)` + lắng nghe `change`; `visibilitychange` sang `visible` thì `director.snapRunning()`; `attachViewportObservers`; chạy `evaluateViewport` lần đầu sau `document.fonts?.ready`; cleanup gọi `director.dispose()` (idempotent, an toàn với StrictMode).
   - `Section`: `<section id>` đăng ký với `director.registerSection` trong `useLayoutEffect`, cung cấp `SectionContext`.
   - `useAssemble`: `useId()` làm id item; `useLayoutEffect` gọi `director.registerItem` với section gần nhất và trả hàm gỡ; không render `data-assemble` trong JSX. Không có provider hoặc không có section thì không làm gì.
-  - CSS: trong `@media (prefers-reduced-motion: no-preference)`, `.js [data-assemble="pending"] { opacity: 0 }` và với `[data-gesture="drop"]` thêm `transform: translate3d(var(--ax, 0), var(--ay, 0), 0) scale(0.96)`; stagger chip: `[data-assemble="done"] .chip { animation: chip-in 220ms both; animation-delay: calc(var(--i, 0) * 40ms) }`.
+  - Ẩn-pending bằng class Tailwind trên wrapper của provider: `motion-safe:[&_[data-assemble=pending]]:opacity-0` và `motion-safe:[&_[data-assemble=pending][data-gesture=drop]]:[transform:translate3d(var(--ax),var(--ay),0)_scale(0.96)]`. Không cần lớp `js` vì thuộc tính `data-assemble` chỉ tồn tại khi JS đã chạy. Stagger chip nằm ở `Chip` (Task 9).
 - [ ] **Step 4: Chạy test, phải PASS.**
 - [ ] **Step 5: Commit.** `git add src/cursors src/styles && git commit -m "feat: add React assembly provider, section, and useAssemble hook"`.
 
@@ -394,7 +395,7 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
   - `PresenceBar`: bọc bằng `aria-hidden="true"`, 6 avatar (chữ cái đầu); với `AssemblyContext.Provider` giả phát sự kiện `{agentId:'mai', sectionId:'projects'}` thì tooltip có văn bản "Mai is editing Projects" (EN) và khi rảnh "Mai is online".
   - `Nav`: 5 link `#about`, `#skills`, `#projects`, `#experience`, `#contact`, nút Contact (`#contact`), `LangToggle`, `PresenceBar`; nút menu có `aria-expanded` và `aria-controls`; mở menu rồi nhấn `Esc` thì đóng và focus quay về nút menu; bấm một link trong menu thì menu đóng.
 - [ ] **Step 2: Chạy test, phải FAIL.** `npx vitest run src/components`.
-- [ ] **Step 3: Cài đặt.** Nav `position: fixed`, cao 64px, `z-index: 40`, không tham gia lắp ráp (fade-in bằng CSS khi tải); nút bấm cao ≥ 44px trên mobile; panel menu `z-index: 60`; icon Phosphor có `aria-hidden` kèm nhãn văn bản hoặc `aria-label`. Placeholder `Photo` dùng `border: 1px dashed var(--color-border)` nền `surface`. Tooltip PresenceBar luôn có trong DOM, hiện bằng CSS khi hover.
+- [ ] **Step 3: Cài đặt.** Nav `position: fixed`, cao 64px, `z-index: 40`, không tham gia lắp ráp (fade-in bằng CSS khi tải); nút bấm cao ≥ 44px trên mobile; panel menu `z-index: 60`; icon Phosphor có `aria-hidden` kèm nhãn văn bản hoặc `aria-label`. Placeholder `Photo` dùng class `border border-dashed border-border bg-surface`. `Card` có class `group`; `Chip` dùng `motion-safe:group-data-[assemble=done]:animate-chip-in [animation-delay:calc(var(--i,0)*40ms)]`, với `--animate-chip-in: chip-in 220ms both` và `@keyframes chip-in` (opacity 0→1, translateY 4px→0) khai báo trong khối `@theme` của `tokens.css`. Tooltip PresenceBar luôn có trong DOM, hiện bằng CSS khi hover.
 - [ ] **Step 4: Chạy test, phải PASS.**
 - [ ] **Step 5: Commit.** `git add src/components && git commit -m "feat: add shared components, nav, language toggle, presence bar"`.
 
@@ -461,7 +462,7 @@ Mỗi file có test đi kèm cùng tên `.test.ts(x)`, trừ file chỉ chứa C
 
 - [ ] **Step 1: Viết test thất bại.**
   - `App.test.tsx`: sáu `section` có `id` đúng thứ tự `SECTION_IDS`; đúng một `h1`; thứ tự heading trong tài liệu không bao giờ nhảy cấp quá 1; mỗi section có ≤ 10 phần tử `[data-assemble]`; link "Skip to content" trỏ tới `main#content` tồn tại; với `matchMedia` reduced-motion khớp thì không có `[data-assemble="pending"]` nào.
-  - `index-html.test.ts` (đọc `index.html` bằng `fs`): có `lang="en"`; script thêm lớp `js` nằm **trước** `<link rel="stylesheet">`/script module; có `<meta name="description">`, `og:title`, `og:description`, `og:image`; khối `<script type="application/ld+json">` parse được thành JSON có `@type: 'Person'`, `name: 'Dat Luong'`, `sameAs` gồm GitHub và LinkedIn; có `<noscript>` chứa tên, vai trò, email, LinkedIn, GitHub.
+  - `index-html.test.ts` (đọc `index.html` bằng `fs`): có `lang="en"`; có `<meta name="description">`, `og:title`, `og:description`, `og:image`; khối `<script type="application/ld+json">` parse được thành JSON có `@type: 'Person'`, `name: 'Dat Luong'`, `sameAs` gồm GitHub và LinkedIn; có `<noscript>` chứa tên, vai trò, email, LinkedIn, GitHub.
 - [ ] **Step 2: Chạy test, phải FAIL.** `npx vitest run src/App.test.tsx src/index-html.test.ts`.
 - [ ] **Step 3: Cài đặt.** `index.html`: title/description/OG tiếng Anh (hạn chế đã chấp nhận), JSON-LD `Person`, `<noscript>` tĩnh. `public/_headers`: `/assets/*` `Cache-Control: public, max-age=31536000, immutable`; `/*` `X-Content-Type-Options: nosniff` và `Referrer-Policy: strict-origin-when-cross-origin`. `robots.txt` cho phép tất cả. `favicon.svg` đơn giản (con trỏ xanh trên nền `bg`). `og.png`: sinh một PNG 1200×630 màu đặc `#0A0D12` bằng script Python một lần (stdlib `zlib` + `struct`), không commit script; chủ dự án sẽ thay.
 - [ ] **Step 4: Chạy toàn bộ test và build.** `npm test` → PASS; `npm run build` → thành công.
