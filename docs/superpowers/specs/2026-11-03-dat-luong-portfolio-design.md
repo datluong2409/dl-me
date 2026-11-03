@@ -132,8 +132,10 @@ Sáu avatar tròn (chữ cái đầu, nền màu của từng người) trong na
 | `scheduler.ts` | Hàm thuần: `isTriggered`, `nextItem`, `countAgents` | không |
 | `path.ts` | Hàm thuần: đường cong Bézier có độ lệch, thời lượng theo khoảng cách | RNG truyền vào |
 | `gestures/draw.ts`, `gestures/drop.ts` | Chạy một cử chỉ, trả `Promise<void>`, hủy được bằng `AbortSignal` | `motion` (`animate`), `CursorView` |
-| `idle.ts` | Cursor rảnh: trôi quanh một điểm "nhà", né con trỏ chuột, trở lại khung nhìn khi trang ngừng cuộn | `pointer.ts`, `viewport.ts` |
-| `pointer.ts`, `viewport.ts` | Vị trí chuột/ngón tay (toạ độ viewport); khung nhìn quy về toạ độ overlay | không |
+| `gestures/type.ts`, `gestures/stamp.ts` | Gõ chữ từng từ; đóng dấu chip/badge/nút | `motion`, `CursorView` |
+| `idle.ts` | Cursor rảnh: lướt tới chỗ nghỉ, trôi nhẹ trong chỗ trống, né con trỏ chuột, tìm chỗ mới khi bị đè hoặc ra khỏi khung nhìn | `roost.ts`, `geometry.ts` |
+| `roost.ts`, `geometry.ts` | Chọn chỗ nghỉ (hai bên nội dung, dàn đều, hoặc xa nội dung nhất) và hình học (khoảng trống quanh cursor) | không |
+| `pointer.ts`, `viewport.ts` | Vị trí chuột/ngón tay; khung nhìn (trừ thanh nav), vị trí chuột và các khối nội dung quy về toạ độ overlay | không |
 | `director.ts` | Lớp `Director`: đăng ký section/item, nhận trigger, giao việc, chốt dở dang | các đơn vị trên |
 | `CursorLayer.tsx` | Overlay; hiện thực `CursorView` bằng ghi DOM trực tiếp | `director.ts` |
 | `useAssemble.ts` | Hook đăng ký một element vào section gần nhất với `{ gesture, order }` | `director.ts` |
@@ -171,7 +173,15 @@ Khi tải trang giữa chừng (khôi phục vị trí cuộn, link `#projects`)
 
 ### 6.4 Giao việc
 
-Item là các khối cấp section (tiêu đề, card, khung ảnh, nút, chip-group). Con của item (chip trong card, dòng chữ trong khối) không phải item; chúng hiện bằng stagger CSS ngắn khi item cha `done`. Ngân sách: mỗi section ≤ 10 item.
+Item có cấu trúc cha/con (cập nhật 2026-11-03). Khối cấp section là item cấp một; mọi element bên trong khối đó mà cursor vẽ riêng là **item con**, lồng được nhiều tầng:
+
+- Item con chỉ được bắt đầu khi **khung cha đã `done`** (cha biến mất khỏi DOM thì con không bị chặn). Cha chưa vẽ xong thì con vẫn ẩn (mỗi item ẩn bằng `opacity` của chính nó).
+- Thứ tự toàn cục: `order` của cha cộng `order` của con / 1000^độ sâu, nên con của một khung được làm trước khung kế tiếp. Anh em cùng cha không được trùng `order` (có test).
+- Cử chỉ `group` là container vô hình: hoàn tất ngay khi cha xong, không cần cursor, rồi mở khoá các con (tiêu đề section, cụm chip, nhóm nút).
+- Một item xong có thể mở khoá con cho agent đang rảnh, nên agent nhận việc ngay chứ không đợi hết thời gian nghỉ.
+- Section `done` khi **mọi** item, kể cả con, đã `done`. Section bị chốt (cuộn đi) thì chốt cả con, và trả lại mọi từ đã bị gõ-ẩn.
+- **Nhịp:** khi còn nhiều hơn `pace.full` = 24 item chưa xong, các cử chỉ của item con nhanh dần (tới 1/`pace.max` = 1/2.5 thời gian, không dưới `pace.floor` = 60ms mỗi bước), để một màn hình đầy chi tiết vẫn xong trong vài giây. Item con bay ngắn (`hop`) thay vì bay dài.
+- **Ngân sách:** mỗi section ≤ 10 item cấp một và ≤ 64 item tổng cộng (có test).
 
 Các agent **kéo việc từ hàng đợi chung**, không chia vòng cố định. Một agent rảnh nhận item `pending` có `order` nhỏ nhất mà **đang trong viewport** (`IntersectionObserver` theo từng item, mở rộng 100px). Item nằm dưới nếp gấp đợi tới khi cuộn vào, nên với section dài cuộn tới đâu lắp tới đó. Số agent chạy song song bằng số agent đang bật (6 hoặc 3). Agent khởi động lệch nhau 140ms. Section `done` khi mọi item `done`.
 
@@ -181,6 +191,8 @@ Mỗi item có `data-assemble="pending|running|done"` và `data-gesture`.
 
 - **`draw` (card, khung ảnh, nút).** Con trỏ bay tới góc trên-trái của item, rồi kéo sang góc dưới-phải; ghost box viền màu agent (có 4 tay nắm góc) lớn dần theo con trỏ trong overlay. Khi khung đầy, item thật fade-in bên dưới và ghost fade-out.
 - **`drop` (tiêu đề, đoạn chữ, chip-group).** Con trỏ bay tới vị trí "khay" của item (lệch khỏi chỗ cuối `(--ax, --ay)` khoảng 60–140px theo hướng cố định theo `order`), nhặt item (item hiện ra tại đó, có viền chọn màu agent và tên), rồi cả hai cùng bay về chỗ cuối. Một giá trị tiến trình duy nhất điều khiển cả transform của item và vị trí con trỏ, nên chúng không bao giờ lệch nhau. Đến nơi, viền chọn tắt.
+- **`type` (tiêu đề, đoạn chữ, dòng gạch đầu dòng, nhãn nút).** Chữ được tách thành từng `<span data-word>` (inline-block, ngăn cách bằng dấu cách thường nên đọc, sao chép và screen reader không đổi). Element hiện ra với mọi từ ẩn; cursor bay tới từ đầu, rồi từng từ hiện dần (opacity 0→1, trượt lên 3px), cursor đi theo từ mới nhất kể cả khi xuống dòng. Thời lượng 70ms mỗi từ, trong [250, 1100]ms, nhân với nhịp. Nội dung `trailing` (biểu tượng) được gõ như một đơn vị cuối, không hiện trước chữ. Chữ không có span từ thì chỉ fade-in.
+- **`stamp` (chip, badge, nút nhỏ).** Cursor bay ngắn tới element rồi "đóng dấu": opacity 0→1 và scale 0.85→1 trong 220ms (nhân với nhịp).
 - Sau mỗi item agent nghỉ 120ms rồi nhận item kế tiếp.
 - Trạng thái `done` xóa hết `style` nội tuyến (`transform: none`), không để lại stacking context hay chữ mờ.
 
@@ -202,9 +214,11 @@ Quyền sở hữu thuộc tính: `data-assemble`, `data-gesture` và biến `--
 ### 6.6 Ngắt, chốt, rảnh
 
 - **Chốt (`snap`).** Khi section đang chạy bị thay thế: hủy mọi cử chỉ (`AbortController`), đặt các item chưa xong về `done` ngay, xóa ghost/viền chọn. Con trỏ giữ nguyên vị trí hiện tại và quay sang việc mới, không nhảy.
-- **Rảnh (cập nhật 2026-11-03).** Cursor rảnh **không bao giờ biến mất** và không còn fade-out: vòng `requestAnimationFrame` chạy liên tục khi có cursor rảnh (6 transform mỗi frame, trình duyệt tự dừng khi tab ẩn). Mỗi cursor trôi chậm (biên độ 40–90px) quanh một điểm "nhà" nằm trong khung nhìn, cách mép `roam.margin` = 100px (lớn hơn biên độ nên không bao giờ trôi ra ngoài).
-  - **Né chuột.** Khi chuột (hoặc ngón tay chạm/kéo) cách cursor dưới `flee.radius` = 120px, cursor lướt (`flee.duration` = 600ms, ease-out) tới một điểm cách chuột ít nhất `flee.distance` = 280px, ưu tiên phía cursor đang đứng so với chuột; gặp tường thì đổi hướng, viewport quá nhỏ thì chọn điểm xa nhất. Giữa hai lần né nghỉ `flee.cooldown` = 400ms. Chỉ cursor rảnh mới né; cursor đang cầm/kéo một item vẫn làm xong việc.
-  - **Ở lại trong khung nhìn.** Cursor sống trong toạ độ tài liệu nên khi cuộn nó cuộn theo trang (không giật). Khi khung nhìn đã đứng yên `roam.settleAfter` = 250ms mà cursor nằm ngoài khung nhìn, nó lướt (`roam.glide` = 600ms) tới một điểm nhà mới trong khung nhìn.
+- **Nghỉ (cập nhật 2026-11-03).** Cursor rảnh **không bao giờ biến mất** và không còn fade-out: vòng `requestAnimationFrame` chạy liên tục khi có cursor rảnh (trình duyệt tự dừng khi tab ẩn). Một agent nghỉ khi hết việc, cũng như khi đang chờ việc mới trong lúc section còn chạy (ví dụ chờ khung cha được vẽ); khi có việc nó thôi nghỉ và bay từ chỗ đang đứng.
+  - **Chỗ nghỉ.** Cursor lướt (`roam.glide` = 600ms) tới khoảng trống **hai bên nội dung**: agent số chẵn (Mai, Linh, Sora) bên trái, số lẻ (Kai, Alex, Minh) bên phải, mỗi bên dàn đều từ trên xuống dưới. Khoảng trống hai bên tính từ các khối nội dung đang nằm trong khung nhìn, cách nội dung `roost.gap` = 16px, cần rộng đủ chứa mũi tên và nhãn tên (`roost.footprint` 72×36px). Nếu chỉ một bên đủ chỗ thì cả đội dùng bên đó, vẫn dàn đều theo chiều dọc. Nếu cả hai đều quá hẹp (màn hình nhỏ) thì chọn điểm **xa nội dung nhất** trong vùng nhìn thấy, vẫn giữ nguyên nhãn tên trong cửa sổ. Vùng nghỉ không gồm thanh nav cố định.
+  - **Trôi nhẹ.** Biên độ 40–90px nhưng co lại theo chỗ trống (tối đa `roost.drift` = 45% khoảng trống quanh điểm nghỉ), nên cursor không trôi đè lên chữ.
+  - **Né chuột.** Khi chuột (hoặc ngón tay chạm/kéo) cách cursor dưới `flee.radius` = 120px, cursor lướt (`flee.duration` = 600ms, ease-out) tới một điểm cách chuột ít nhất `flee.distance` = 280px, ưu tiên hướng ra xa chuột và, trong số đó, chỗ có nhiều khoảng trống nhất (tránh nội dung); gặp tường thì đổi hướng, viewport quá nhỏ thì chọn điểm xa nhất. Giữa hai lần né nghỉ `flee.cooldown` = 400ms. Chỉ cursor rảnh mới né; cursor đang cầm/kéo một item vẫn làm xong việc. Vị trí chuột được quy về toạ độ overlay trước khi đưa vào idle.
+  - **Ở lại trong khung nhìn.** Cursor sống trong toạ độ tài liệu nên khi cuộn nó cuộn theo trang (không giật). Khi khung nhìn đã đứng yên `roam.settleAfter` = 250ms mà cursor nằm ngoài khung nhìn, nó tìm chỗ nghỉ mới. Cứ mỗi `roost.recheck` = 500ms khi trang đứng yên, nếu cursor đang đè lên nội dung và có chỗ thoáng hơn (≥ `roost.minRoom` = 24px) thì cũng dời đi.
   - Section kích hoạt tiếp theo vẫn kéo các cursor đi làm việc như cũ. Khi `prefers-reduced-motion` bật thì không có cursor (không đổi).
 - **Tab ẩn.** `visibilitychange` tạm dừng; khi quay lại, section đang chạy được chốt.
 - **Đổi ngôn ngữ.** Không chạy lại hiệu ứng. Item `pending` được đo vị trí **lúc bắt đầu cử chỉ** nên không bị số liệu cũ. `ResizeObserver` chỉ cập nhật ngưỡng trigger.
@@ -226,8 +240,13 @@ Overlay là `position: absolute; inset: 0; overflow: clip; pointer-events: none`
 | Ghost / viền chọn tắt | 120ms (nhanh hơn lúc vào) |
 | Nghỉ giữa item | 120ms |
 | Lệch khởi động giữa agent | 140ms |
-| Cursor rảnh ở trong khung nhìn | cách mép 100px; về lại khung nhìn sau khi cuộn đứng yên 250ms, lướt 600ms |
+| Chỗ nghỉ | cách nội dung 16px, cách mép 48px; nhãn tên 72×36px; trôi ≤ 45% chỗ trống; kiểm tra lại mỗi 500ms |
+| Tìm chỗ nghỉ mới | sau khi trang đứng yên 250ms; lướt 600ms |
 | Né chuột | bán kính 120px; tới điểm cách chuột ≥ 280px; 600ms, easing `[0.22, 1, 0.36, 1]`; nghỉ 400ms giữa hai lần |
+| Bay ngắn giữa các item con | `140 + 0.4 × khoảng cách` ms, trong [140, 520] |
+| Gõ chữ | 70ms mỗi từ, trong [250, 1100]ms; từ trượt lên 3px; easing tuyến tính |
+| Đóng dấu | 220ms, scale 0.85→1, easing `[0.22, 1, 0.36, 1]` |
+| Nhịp | > 24 item chưa xong thì nhanh dần tới 2.5 lần, không dưới 60ms mỗi bước |
 | Ngưỡng trigger | 0.35 |
 
 ## 7. Song ngữ
