@@ -16,9 +16,11 @@ export const MOTION = {
   ghostOut: 120,
   itemGap: 120,
   agentStagger: 140,
-  idleFadeDelay: 5000,
-  idleFadeDuration: 400,
   idleAmplitude: { min: 40, max: 90 },
+  /** Idle cursors stay inside the viewport: `margin` px from its edges; they re-home once it has been still for `settleAfter` ms. */
+  roam: { margin: 100, settleAfter: 250, glide: 600 },
+  /** An idle cursor with the pointer within `radius` px glides to a spot at least `distance` px away. */
+  flee: { radius: 120, distance: 280, duration: 600, cooldown: 400, ease: [0.22, 1, 0.36, 1] },
   eligibleMargin: 100,
   /** Safety net (plan addition): a gesture that never finishes is snapped after this long. */
   gestureTimeout: 4000,

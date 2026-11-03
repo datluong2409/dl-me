@@ -10,7 +10,10 @@ import { createDrawGesture } from './gestures/draw'
 import { createDropGesture } from './gestures/drop'
 import { startIdle } from './idle'
 import { attachViewportObservers, evaluateViewport } from './observers'
+import { trackPointer } from './pointer'
+import type { PointerTracker } from './pointer'
 import type { CursorView, Point } from './types'
+import { viewportInOverlay } from './viewport'
 
 // Pending items are hidden (and drop items start offset) only when motion is allowed. The data attributes
 // exist only once JS has run, so nothing is ever hidden without the director to reveal it.
@@ -23,6 +26,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
   const viewRef = useRef<CursorView | null>(null)
+  const pointerRef = useRef<PointerTracker | null>(null)
 
   const [value] = useState<AssemblyValue>(() => {
     const agents = activeAgents(window.innerWidth)
@@ -57,6 +61,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
           edge === 0 ? { x: along * w, y: -40 } : edge === 1 ? { x: along * w, y: h + 40 } : edge === 2 ? { x: -40, y: along * h } : { x: w + 40, y: along * h }
         return { x: viewport.x - base.left, y: viewport.y - base.top }
       },
+      viewport: () => viewportInOverlay(origin(), { width: window.innerWidth, height: window.innerHeight }),
+      pointer: () => pointerRef.current?.get() ?? null,
     })
     return { director, agents }
   })
@@ -77,6 +83,7 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
 
     const cursorView = createCursorView(overlayRef.current!, agents)
     viewRef.current = cursorView
+    pointerRef.current = trackPointer()
     const detach = attachViewportObservers(director, wrapperRef.current!)
 
     let cancelled = false
@@ -92,6 +99,8 @@ export function AssemblyProvider({ children }: { children: ReactNode }) {
       director.dispose()
       cursorView.destroy()
       viewRef.current = null
+      pointerRef.current?.stop()
+      pointerRef.current = null
     }
   }, [value])
 

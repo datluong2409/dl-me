@@ -143,6 +143,19 @@ describe('AssemblyProvider', () => {
     expect(phone.container.querySelectorAll('[data-cursor]')).toHaveLength(3)
   })
 
+  it('follows the pointer only while mounted', () => {
+    const add = vi.spyOn(window, 'addEventListener')
+    const remove = vi.spyOn(window, 'removeEventListener')
+    const { unmount } = render(
+      <AssemblyProvider>
+        <p>x</p>
+      </AssemblyProvider>,
+    )
+    expect(add.mock.calls.some(([type]) => type === 'pointermove')).toBe(true)
+    unmount()
+    expect(remove.mock.calls.some(([type]) => type === 'pointermove')).toBe(true)
+  })
+
   it('hides pending items with Tailwind classes that only apply when motion is allowed', () => {
     const { container } = render(
       <AssemblyProvider>

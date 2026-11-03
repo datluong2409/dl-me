@@ -19,9 +19,9 @@ describe('MOTION tokens', () => {
       ghostOut: 120,
       itemGap: 120,
       agentStagger: 140,
-      idleFadeDelay: 5000,
-      idleFadeDuration: 400,
       idleAmplitude: { min: 40, max: 90 },
+      roam: { margin: 100, settleAfter: 250, glide: 600 },
+      flee: { radius: 120, distance: 280, duration: 600, cooldown: 400, ease: [0.22, 1, 0.36, 1] },
       eligibleMargin: 100,
       gestureTimeout: 4000,
     })

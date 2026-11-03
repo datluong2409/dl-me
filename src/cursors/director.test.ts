@@ -1,9 +1,10 @@
 import { AGENTS } from './agents'
 import { Director } from './director'
 import type { DirectorDeps } from './director'
-import type { Gesture, GestureContext, Rect } from './types'
+import type { Gesture, GestureContext, Point, Rect } from './types'
 
 const FULL: Rect = { x: 0, y: 0, width: 100, height: 40 }
+const VIEWPORT: Rect = { x: 0, y: 1200, width: 1000, height: 800 }
 
 interface Call {
   ctx: GestureContext
@@ -23,6 +24,7 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
   }
   const view = { setPosition: vi.fn(), setVisible: vi.fn(), showGhost: vi.fn(), setSelection: vi.fn() }
   const stops: ReturnType<typeof vi.fn>[] = []
+  let pointerAt: Point | null = null
   const deps: DirectorDeps = {
     view,
     gestures: { draw: gesture, drop: gesture },
@@ -35,6 +37,8 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
     rng: () => 0.5,
     measure,
     spawn: () => ({ x: 5, y: 5 }),
+    viewport: () => VIEWPORT,
+    pointer: () => pointerAt,
   }
   const director = new Director(deps)
 
@@ -55,7 +59,11 @@ function setup(measure: (el: HTMLElement) => Rect = () => FULL) {
   const ids = () => calls.map((c) => c.ctx.item.id)
   const tick = (ms = 0) => vi.advanceTimersByTimeAsync(ms)
 
-  return { director, view, deps, calls, seen, stops, section, item, ids, tick }
+  const setPointer = (p: Point | null) => {
+    pointerAt = p
+  }
+
+  return { director, view, deps, calls, seen, stops, section, item, ids, tick, setPointer }
 }
 
 describe('Director: registration', () => {
@@ -344,7 +352,7 @@ describe('Director: reduced motion', () => {
   })
 })
 
-describe('Director: idle drift and fade-out', () => {
+describe('Director: idle drift', () => {
   beforeEach(() => vi.useFakeTimers())
   afterEach(() => {
     vi.useRealTimers()
@@ -358,61 +366,54 @@ describe('Director: idle drift and fade-out', () => {
     await t.tick(120)
   }
 
-  it('starts an idle drift for every agent around the finished section', async () => {
+  it('starts an idle drift for every agent, handing it the visible viewport and the pointer', async () => {
     const t = setup()
     t.section('s')
     t.item('s', 'a', 1)
+    t.setPointer({ x: 7, y: 9 })
     await finishSection(t, 's')
     expect(t.deps.startIdle).toHaveBeenCalledTimes(2)
-    const firstCall = (t.deps.startIdle as ReturnType<typeof vi.fn>).mock.calls[0][0]
-    expect(firstCall.bounds).toEqual(FULL)
-    expect(firstCall.agent.id).toBe('mai')
+    const first = (t.deps.startIdle as ReturnType<typeof vi.fn>).mock.calls[0][0]
+    expect(first.agent.id).toBe('mai')
+    expect(first.viewport()).toEqual(VIEWPORT)
+    expect(first.pointer()).toEqual({ x: 7, y: 9 })
+    t.setPointer(null)
+    expect(first.pointer()).toBeNull()
   })
 
-  it('fades every agent out after 5000ms without a new trigger and stops their drift', async () => {
+  it('never fades the agents out, however long they idle', async () => {
     const t = setup()
     t.section('s')
     t.item('s', 'a', 1)
-    await finishSection(t, 's') // the 5000ms countdown started when the last item finished, 120ms ago
-    await t.tick(4879)
+    await finishSection(t, 's')
+    await t.tick(10 * 60 * 1000)
     expect(t.view.setVisible).not.toHaveBeenCalledWith('mai', false)
-    await t.tick(1)
-    expect(t.view.setVisible).toHaveBeenCalledWith('mai', false)
-    expect(t.view.setVisible).toHaveBeenCalledWith('kai', false)
+    expect(t.view.setVisible).not.toHaveBeenCalledWith('kai', false)
     expect(t.stops).toHaveLength(2)
-    expect(t.stops.every((stop) => stop.mock.calls.length > 0)).toBe(true)
+    expect(t.stops.every((stop) => stop.mock.calls.length === 0)).toBe(true)
   })
 
-  it('cancels the fade-out and stops the drift when a new section triggers', async () => {
+  it('stops the drift when a new section triggers', async () => {
     const t = setup()
     t.section('s')
     t.section('s2')
     t.item('s', 'a', 1)
     t.item('s2', 'b', 1)
     await finishSection(t, 's')
-    await t.tick(4000)
     expect(t.stops).toHaveLength(2)
     t.director.triggerSection('s2')
     expect(t.stops.every((stop) => stop.mock.calls.length > 0)).toBe(true)
-    await t.tick(6000)
-    expect(t.view.setVisible).not.toHaveBeenCalledWith('mai', false)
   })
 
-  it('brings an agent back in from the spawn point after it faded out', async () => {
+  it('goes back to drifting after snapRunning() finishes the running section', async () => {
     const t = setup()
     t.section('s')
-    t.section('s2')
     t.item('s', 'a', 1)
-    t.item('s2', 'b', 1)
-    await finishSection(t, 's')
-    await t.tick(5000)
-    t.view.setPosition.mockClear()
-    t.view.setVisible.mockClear()
-    t.director.triggerSection('s2')
+    t.director.triggerSection('s')
     await t.tick()
-    expect(t.view.setPosition).toHaveBeenCalledWith('mai', 5, 5)
-    expect(t.view.setVisible).toHaveBeenCalledWith('mai', true)
-    expect(t.view.setPosition.mock.invocationCallOrder[0]).toBeLessThan(t.view.setVisible.mock.invocationCallOrder[0])
+    expect(t.deps.startIdle).not.toHaveBeenCalled()
+    t.director.snapRunning()
+    expect(t.deps.startIdle).toHaveBeenCalledTimes(2)
   })
 })
 

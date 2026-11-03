@@ -14,6 +14,10 @@ export interface DirectorDeps {
   measure: (el: HTMLElement) => Rect
   /** A point on the viewport edge, in overlay coordinates, where an agent first appears. */
   spawn: () => Point
+  /** The visible window in overlay (document) coordinates; read fresh whenever it is needed. */
+  viewport: () => Rect
+  /** Where the pointer is, in viewport coordinates, or null when it is not over the page. */
+  pointer: () => Point | null
 }
 
 export interface StatusEvent {
@@ -64,7 +68,6 @@ export class Director {
   private runningId: string | null = null
   private reduced = false
   private disposed = false
-  private fadeTimer?: Timer
   private listeners = new Set<(event: StatusEvent) => void>()
 
   constructor(private deps: DirectorDeps) {
@@ -90,6 +93,7 @@ export class Director {
     if (!this.runningId) return
     this.completeSectionInstantly(this.runningId)
     this.settleAgents()
+    this.beginIdle()
   }
 
   subscribe(listener: (event: StatusEvent) => void): () => void {
@@ -250,9 +254,9 @@ export class Director {
     for (const agent of this.agents) if (this.isFree(agent)) this.report(agent, null)
   }
 
-  private onSectionDone(section: SectionState): void {
-    if (this.reduced || this.disposed || !section.el) return
-    const bounds = this.deps.measure(section.el)
+  /** Agents with no work keep drifting on screen, dodging the pointer, until the next section needs them. */
+  private beginIdle(): void {
+    if (this.reduced || this.disposed) return
     const { view } = this.deps
     for (const agent of this.agents) {
       if (!agent.visible) {
@@ -266,33 +270,21 @@ export class Director {
         agent: agent.agent,
         view,
         from: agent.position as Point,
-        bounds,
         rng: this.deps.rng,
         setPosition: (p) => {
           agent.position = p
           view.setPosition(agent.agent.id, p.x, p.y)
         },
+        viewport: this.deps.viewport,
+        pointer: this.deps.pointer,
       })
     }
-    this.fadeTimer = setTimeout(() => this.fadeOutAll(), MOTION.idleFadeDelay)
   }
 
   private cancelIdle(): void {
-    if (this.fadeTimer) clearTimeout(this.fadeTimer)
-    this.fadeTimer = undefined
     for (const agent of this.agents) {
       agent.stopIdle?.()
       agent.stopIdle = undefined
-    }
-  }
-
-  private fadeOutAll(): void {
-    this.fadeTimer = undefined
-    for (const agent of this.agents) {
-      agent.stopIdle?.()
-      agent.stopIdle = undefined
-      if (agent.visible) this.deps.view.setVisible(agent.agent.id, false)
-      agent.visible = false
     }
   }
 
@@ -403,6 +395,6 @@ export class Director {
     if (!this.itemsOf(section.id).every((i) => i.status === 'done')) return
     section.status = 'done'
     if (this.runningId === section.id) this.runningId = null
-    this.onSectionDone(section)
+    this.beginIdle()
   }
 }

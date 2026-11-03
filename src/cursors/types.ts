@@ -54,8 +54,12 @@ export type GestureFn = (ctx: GestureContext) => Promise<void>
 export interface IdleContext {
   agent: Agent
   view: CursorView
+  /** Where the agent is now, in overlay coordinates. */
   from: Point
-  bounds: Rect
   rng: () => number
   setPosition(p: Point): void
+  /** The visible window in overlay coordinates, read fresh each frame (it moves as the page scrolls). */
+  viewport(): Rect
+  /** The pointer in viewport coordinates (CSS px from the window's top-left), or null when it is not over the page. */
+  pointer(): Point | null
 }
